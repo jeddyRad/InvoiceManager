@@ -28,6 +28,38 @@
     <button type="submit" class="btn btn-primary">Enregistrer</button>
 </EditForm>
 
+<h4>Lignes de facture</h4>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Description</th>
+            <th>Quantité</th>
+            <th>Prix Unitaire</th>
+            <th>Total</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var ligne in facture.Lignes)
+        {
+            <tr>
+                <td><InputText @bind-Value="ligne.Description" class="form-control" /></td>
+                <td><InputNumber @bind-Value="ligne.Quantite" class="form-control" /></td>
+                <td><InputNumber @bind-Value="ligne.PrixUnitaire" class="form-control" /></td>
+                <td>@ligne.TotalLigne</td>
+                <td>
+                    <button type="button" class="btn btn-danger btn-sm" @onclick="@(() => RemoveLigne(ligne))">Supprimer</button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<button type="button" class="btn btn-secondary" @onclick="AddLigne">Ajouter une ligne</button>
+
+<p>Total HT : @facture.Lignes.Sum(l => l.TotalLigne)</p>
+<p>Total TTC : @(facture.Lignes.Sum(l => l.TotalLigne))</p> <!-- TVA simplifiée -->
 @code {
     [Parameter] public Facture? FactureToEdit { get; set; }
 
@@ -51,9 +83,28 @@
 
     private async Task HandleValidSubmit()
     {
+        // Calculer les totaux avant persistance
+        facture.TotalHT = facture.Lignes.Sum(l => l.TotalLigne);
+        facture.TotalTTC = facture.TotalHT; // TVA à implémenter
+
         if (facture.Id == 0)
             await FactureService.AddAsync(facture);
         else
             await FactureService.UpdateAsync(facture);
+
+        // Réinitialiser le formulaire ou naviguer
     }
+
+    private void AddLigne()
+    {
+        facture.Lignes.Add(new LigneFacture());
+    }
+
+    private void RemoveLigne(LigneFacture ligne)
+    {
+        facture.Lignes.Remove(ligne);
+    }
+
+  
+
 }
