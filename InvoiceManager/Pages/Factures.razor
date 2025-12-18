@@ -1,0 +1,48 @@
+﻿@page "/factures"
+@using InvoiceManager.Data.Entities
+@using InvoiceManager.Services.Interfaces
+@inject IFactureService FactureService
+
+<h3>Liste des Factures</h3>
+
+@if (factures == null)
+{
+    <p><em>Chargement...</em></p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Id</th>
+                <th>Numéro</th>
+                <th>Client</th>
+                <th>Date</th>
+                <th>Total HT</th>
+                <th>Total TTC</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var facture in factures)
+            {
+                <tr>
+                    <td>@facture.Id</td>
+                    <td>@facture.Numero</td>
+                    <td>@facture.Client.Nom</td>
+                    <td>@facture.DateFacture.ToShortDateString()</td>
+                    <td>@facture.TotalHT</td>
+                    <td>@facture.TotalTTC</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Facture>? factures;
+
+    protected override async Task OnInitializedAsync()
+    {
+        factures = await FactureService.GetAllAsync();
+    }
+}

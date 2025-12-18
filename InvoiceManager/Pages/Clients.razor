@@ -1,0 +1,44 @@
+﻿@page "/clients"
+@using InvoiceManager.Data.Entities
+@using InvoiceManager.Services.Interfaces
+@inject IClientService ClientService
+
+<h3>Liste des Clients</h3>
+
+@if (clients == null)
+{
+    <p><em>Chargement...</em></p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Id</th>
+                <th>Nom</th>
+                <th>Email</th>
+                <th>Téléphone</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var client in clients)
+            {
+                <tr>
+                    <td>@client.Id</td>
+                    <td>@client.Nom</td>
+                    <td>@client.Email</td>
+                    <td>@client.Telephone</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Client>? clients;
+
+    protected override async Task OnInitializedAsync()
+    {
+        clients = await ClientService.GetAllAsync();
+    }
+}
