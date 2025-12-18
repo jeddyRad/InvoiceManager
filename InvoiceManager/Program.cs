@@ -1,7 +1,8 @@
 using InvoiceManager.Components;
 using Microsoft.EntityFrameworkCore;
 using InvoiceManager.Data;
-
+using InvoiceManager.Services;
+using InvoiceManager.Services.Interfaces;
 namespace InvoiceManager
 {
     public class Program
@@ -15,6 +16,8 @@ namespace InvoiceManager
                    options.UseSqlite(
                        builder.Configuration.GetConnectionString("DefaultConnection")
                    ));
+            builder.Services.AddScoped<IClientService, ClientService>();
+            builder.Services.AddScoped<IFactureService, FactureService>();
             builder.Services.AddRazorComponents()
                 .AddInteractiveServerComponents();
 
@@ -40,3 +43,4 @@ namespace InvoiceManager
         }
     }
 }
+
