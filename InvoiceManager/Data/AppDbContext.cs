@@ -20,11 +20,16 @@ namespace InvoiceManager.Data
         {
             base.OnModelCreating(modelBuilder);
 
-            // Configure decimal precision for SQLite
+            // Configure relationships for SQLite
             modelBuilder.Entity<Facture>(entity =>
             {
-                entity.Property(f => f.TotalHT).HasPrecision(18, 2);
-                entity.Property(f => f.TotalTTC).HasPrecision(18, 2);
+                // ❌ RETIREZ CES LIGNES - incompatibles avec SQLite
+                // entity.Property(f => f.TotalHT).HasPrecision(18, 2);
+                // entity.Property(f => f.TotalTTC).HasPrecision(18, 2);
+
+                // ✅ SQLite gère les decimal automatiquement
+                entity.Property(f => f.TotalHT).HasColumnType("TEXT");
+                entity.Property(f => f.TotalTTC).HasColumnType("TEXT");
 
                 entity.HasOne(f => f.Client)
                     .WithMany(c => c.Factures)
@@ -34,7 +39,12 @@ namespace InvoiceManager.Data
 
             modelBuilder.Entity<LigneFacture>(entity =>
             {
-                entity.Property(l => l.PrixUnitaire).HasPrecision(18, 2);
+                // ❌ RETIREZ cette ligne aussi
+                // entity.Property(l => l.PrixUnitaire).HasPrecision(18, 2);
+                
+                // ✅ SQLite utilise TEXT pour les decimals
+                entity.Property(l => l.PrixUnitaire).HasColumnType("TEXT");
+                
                 entity.Ignore(l => l.TotalLigne);
 
                 entity.HasOne(l => l.Facture)
@@ -43,7 +53,6 @@ namespace InvoiceManager.Data
                     .OnDelete(DeleteBehavior.Cascade);
             });
 
-            // Rename tables to match DbSet names
             modelBuilder.Entity<Facture>().ToTable("Factures");
             modelBuilder.Entity<LigneFacture>().ToTable("LigneFactures");
         }

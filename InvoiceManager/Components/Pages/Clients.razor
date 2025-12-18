@@ -1,0 +1,145 @@
+@page "/clients"
+@using Microsoft.AspNetCore.Components.Web
+@using InvoiceManager.Components
+@using InvoiceManager.Data.Entities
+@using InvoiceManager.Services.Interfaces
+@inject IClientService ClientService
+@inject ILogger<Clients> Logger
+@rendermode InteractiveServer
+@implements IDisposable
+
+<PageTitle>Clients - InvoiceManager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>Liste des Clients</h3>
+    @if (!showForm)
+    {
+        <button class="btn btn-primary" @onclick="ShowCreateForm">
+            <i class="bi bi-plus-circle"></i> Nouveau Client
+        </button>
+    }
+</div>
+
+@if (showForm)
+{
+    <div class="card mb-4">
+        <div class="card-body">
+            <h4 class="card-title">@(selectedClient == null ? "Nouveau Client" : $"Modifier {selectedClient.Nom}")</h4>
+            <ClientForm ClientToEdit="selectedClient" OnSaved="HandleSaved" OnCancelled="HandleCancelled" />
+        </div>
+    </div>
+}
+
+@if (clients == null)
+{
+    <div class="text-center p-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Chargement...</span>
+        </div>
+        <p class="mt-2">Chargement des clients...</p>
+    </div>
+}
+else if (!clients.Any())
+{
+    <div class="alert alert-info">
+        <p class="mb-0">Aucun client trouvé. Cliquez sur "Nouveau Client" pour créer votre premier client.</p>
+    </div>
+}
+else
+{
+    <table class="table table-striped table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>Nom</th>
+                <th>Email</th>
+                <th>Téléphone</th>
+                <th class="text-center">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            <Virtualize Items="@clients" Context="client">
+                <tr>
+                    <td><strong>@client.Nom</strong></td>
+                    <td>@client.Email</td>
+                    <td>@client.Telephone</td>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-sm btn-primary" @onclick="() => SelectClient(client)">Éditer</button>
+                    </td>
+                </tr>
+            </Virtualize>
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Client>? clients;
+    private Client? selectedClient;
+    private bool showForm = false;
+    private bool shouldRender = true;
+
+    protected override bool ShouldRender() => shouldRender;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Logger.LogInformation("Chargement de la page Clients");
+            await LoadClients();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Erreur lors du chargement des clients");
+            clients = new List<Client>();
+        }
+    }
+
+    private async Task LoadClients()
+    {
+        shouldRender = true;
+        clients = await ClientService.GetAllAsync();
+        Logger.LogInformation("Chargement de {Count} clients", clients.Count);
+    }
+
+    private void ShowCreateForm()
+    {
+        shouldRender = true;
+        selectedClient = null;
+        showForm = true;
+    }
+
+    private void SelectClient(Client client)
+    {
+        shouldRender = true;
+        selectedClient = client;
+        showForm = true;
+    }
+
+    private async Task HandleSaved()
+    {
+        try
+        {
+            shouldRender = true;
+            await LoadClients();
+            showForm = false;
+            selectedClient = null;
+            Logger.LogInformation("Client sauvegardé avec succès");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Erreur lors de la sauvegarde du client");
+        }
+    }
+
+    private void HandleCancelled()
+    {
+        shouldRender = true;
+        showForm = false;
+        selectedClient = null;
+    }
+
+    public void Dispose()
+    {
+        Logger.LogDebug("Disposal de la page Clients");
+        // Libération des ressources si nécessaire
+    }
+}
