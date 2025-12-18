@@ -1,4 +1,6 @@
 using InvoiceManager.Components;
+using Microsoft.EntityFrameworkCore;
+using InvoiceManager.Data;
 
 namespace InvoiceManager
 {
@@ -9,6 +11,10 @@ namespace InvoiceManager
             var builder = WebApplication.CreateBuilder(args);
 
             // Add services to the container.
+            builder.Services.AddDbContext<AppDbContext>(options =>
+                   options.UseSqlite(
+                       builder.Configuration.GetConnectionString("DefaultConnection")
+                   ));
             builder.Services.AddRazorComponents()
                 .AddInteractiveServerComponents();
 
