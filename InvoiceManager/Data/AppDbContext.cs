@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using InvoiceManager.Data.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace InvoiceManager.Data
 {
@@ -11,5 +12,8 @@ namespace InvoiceManager.Data
 
         // Ajoutez vos DbSet ici, par exemple :
         // public DbSet<Invoice> Invoices { get; set; }
+        public DbSet<Client> Clients { get; set; }
+        public DbSet<Facture> Invoices { get; set; }
+        public DbSet<LigneFacture> Products { get; set; }
     }
 }
