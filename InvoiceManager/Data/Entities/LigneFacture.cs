@@ -6,14 +6,14 @@ namespace InvoiceManager.Data.Entities
     {
         public int Id { get; set; }
 
-        [Required]
+        [Required(ErrorMessage = "La description est obligatoire.")]
         public string Description { get; set; } = string.Empty;
 
-        [Range(1, int.MaxValue)]
+        [Range(1, int.MaxValue, ErrorMessage = "La quantité doit être supérieure à 0.")]
         public int Quantite { get; set; } = 1;
 
-        [Range(0, double.MaxValue)]
-        public decimal PrixUnitaire { get; set; } = 0;
+        [Range(0.01, double.MaxValue, ErrorMessage = "Le prix unitaire doit être positif.")]
+        public decimal PrixUnitaire { get; set; } = 0.01m;
 
         public decimal TotalLigne => Quantite * PrixUnitaire;
 

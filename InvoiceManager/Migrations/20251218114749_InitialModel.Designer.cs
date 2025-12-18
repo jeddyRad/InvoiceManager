@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace InvoiceManager.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20251218085743_InitialModel")]
+    [Migration("20251218114749_InitialModel")]
     partial class InitialModel
     {
         /// <inheritdoc />
@@ -65,16 +65,18 @@ namespace InvoiceManager.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("TotalHT")
+                        .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("TotalTTC")
+                        .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
                     b.HasIndex("ClientId");
 
-                    b.ToTable("Invoices");
+                    b.ToTable("Factures", (string)null);
                 });
 
             modelBuilder.Entity("InvoiceManager.Data.Entities.LigneFacture", b =>
@@ -91,19 +93,17 @@ namespace InvoiceManager.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<decimal>("PrixUnitaire")
+                        .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Quantite")
                         .HasColumnType("INTEGER");
 
-                    b.Property<decimal>("TotalLigne")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("FactureId");
 
-                    b.ToTable("Products");
+                    b.ToTable("LigneFactures", (string)null);
                 });
 
             modelBuilder.Entity("InvoiceManager.Data.Entities.Facture", b =>

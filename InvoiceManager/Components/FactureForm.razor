@@ -2,11 +2,29 @@
 @inject IClientService ClientService
 @using InvoiceManager.Data.Entities
 @using InvoiceManager.Services.Interfaces
+@using Microsoft.AspNetCore.Components
 
-<EditForm Model="facture" OnValidSubmit="HandleValidSubmit">
+@if (!string.IsNullOrEmpty(successMessage))
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @successMessage
+        <button type="button" class="btn-close" @onclick="() => successMessage = null"></button>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @errorMessage
+        <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+    </div>
+}
+
+<EditForm Model="facture" OnValidSubmit="HandleValidSubmit" FormName="facture-form">
     <DataAnnotationsValidator />
     <ValidationSummary />
 
+    <!-- Facture principale -->
     <div class="mb-3">
         <label class="form-label">Numéro</label>
         <InputText class="form-control" @bind-Value="facture.Numero" />
@@ -16,7 +34,7 @@
     <div class="mb-3">
         <label class="form-label">Client</label>
         <InputSelect class="form-control" @bind-Value="facture.ClientId">
-            <option value="">Sélectionner un client</option>
+            <option value="0">Sélectionner un client</option>
             @foreach (var c in clients)
             {
                 <option value="@c.Id">@c.Nom</option>
@@ -25,100 +43,159 @@
         <ValidationMessage For="@(() => facture.ClientId)" />
     </div>
 
-    <button type="submit" class="btn btn-primary">Enregistrer</button>
-</EditForm>
+    <h4>Lignes de facture</h4>
 
-<h4>Lignes de facture</h4>
-
-<table class="table">
-    <thead>
-        <tr>
-            <th>Description</th>
-            <th>Quantité</th>
-            <th>Prix Unitaire</th>
-            <th>Total</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach (var ligne in facture.Lignes)
-        {
+    <table class="table">
+        <thead>
             <tr>
-                <td>
-                    <InputText class="form-control" @bind-Value="ligne.Description" />
-                    <ValidationMessage For="@(() => ligne.Description)" />
-                </td>
-                <td>
-                    <InputNumber class="form-control" @bind-Value="ligne.Quantite" />
-                    <ValidationMessage For="@(() => ligne.Quantite)" />
-                </td>
-                <td>
-                    <InputNumber class="form-control" @bind-Value="ligne.PrixUnitaire" />
-                    <ValidationMessage For="@(() => ligne.PrixUnitaire)" />
-                </td>
-                <td>@ligne.TotalLigne</td>
-                <td>
-                    <button type="button" class="btn btn-danger btn-sm" @onclick="@(() => RemoveLigne(ligne))">Supprimer</button>
-                </td>
+                <th>Description</th>
+                <th>Quantité</th>
+                <th>Prix Unitaire</th>
+                <th>Total</th>
+                <th>Actions</th>
             </tr>
-        }
-    </tbody>
-</table>
+        </thead>
+        <tbody>
+            @foreach (var ligne in facture.Lignes)
+            {
+                <tr>
+                    <td>
+                        <InputText class="form-control"
+                                   @bind-Value="ligne.Description" />
+                        <ValidationMessage For="@(() => ligne.Description)" />
+                    </td>
+                    <td>
+                        <InputNumber class="form-control"
+                                     @bind-Value="ligne.Quantite" />
+                        <ValidationMessage For="@(() => ligne.Quantite)" />
+                    </td>
+                    <td>
+                        <InputNumber class="form-control"
+                                     @bind-Value="ligne.PrixUnitaire" />
+                        <ValidationMessage For="@(() => ligne.PrixUnitaire)" />
+                    </td>
+                    <td>@ligne.TotalLigne.ToString("C")</td>
+                    <td>
+                        <button type="button" class="btn btn-danger btn-sm" @onclick="@(() => RemoveLigne(ligne))">Supprimer</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
 
-<button type="button" class="btn btn-secondary" @onclick="AddLigne">Ajouter une ligne</button>
+    <button type="button" class="btn btn-secondary" @onclick="AddLigne">Ajouter une ligne</button>
 
-<p><strong>Total HT :</strong> @TotalHT</p>
-<p><strong>TVA (20%) :</strong> @Tva</p>
-<p><strong>Total TTC :</strong> @TotalTTC</p>
+    <p><strong>Total HT :</strong> @TotalHT.ToString("C")</p>
+    <p><strong>TVA (20%) :</strong> @Tva.ToString("C")</p>
+    <p><strong>Total TTC :</strong> @TotalTTC.ToString("C")</p>
+
+    <button type="submit" class="btn btn-primary">Enregistrer</button>
+    @if (FactureToEdit != null)
+    {
+        <button type="button" class="btn btn-secondary" @onclick="HandleCancel">Annuler</button>
+    }
+</EditForm>
 
 @code {
     [Parameter] public Facture? FactureToEdit { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+    [Parameter] public EventCallback OnCancelled { get; set; }
 
     private Facture facture = new Facture();
     private List<Client> clients = new();
+    private string? successMessage;
+    private string? errorMessage;
+
     private decimal TotalHT => facture.Lignes.Sum(l => l.TotalLigne);
-    private decimal Tva => TotalHT * 0.2m; // TVA 20%
+    private decimal Tva => TotalHT * 0.2m;
     private decimal TotalTTC => TotalHT + Tva;
 
     protected override async Task OnInitializedAsync()
     {
         clients = await ClientService.GetAllAsync();
+        SyncFromParameters();
+    }
 
+    protected override void OnParametersSet()
+    {
+        SyncFromParameters();
+        successMessage = null;
+        errorMessage = null;
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        try
+        {
+            successMessage = null;
+            errorMessage = null;
+
+            if (facture.Lignes.Count == 0)
+            {
+                errorMessage = "Veuillez ajouter au moins une ligne à la facture.";
+                return;
+            }
+
+            facture.TotalHT = TotalHT;
+            facture.TotalTTC = TotalTTC;
+
+            if (facture.Id == 0)
+            {
+                await FactureService.AddAsync(facture);
+                successMessage = $"Facture '{facture.Numero}' créée avec succès.";
+            }
+            else
+            {
+                await FactureService.UpdateAsync(facture);
+                successMessage = $"Facture '{facture.Numero}' mise à jour avec succès.";
+            }
+
+            if (OnSaved.HasDelegate)
+            {
+                await OnSaved.InvokeAsync();
+            }
+
+            facture = new Facture();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Erreur lors de l'enregistrement: {ex.Message}";
+        }
+    }
+
+    private void AddLigne() => facture.Lignes.Add(new LigneFacture());
+    private void RemoveLigne(LigneFacture ligne) => facture.Lignes.Remove(ligne);
+
+    private async Task HandleCancel()
+    {
+        facture = new Facture();
+        successMessage = null;
+        errorMessage = null;
+        
+        if (OnCancelled.HasDelegate)
+        {
+            await OnCancelled.InvokeAsync();
+        }
+    }
+
+    private void SyncFromParameters()
+    {
         if (FactureToEdit != null)
         {
             facture = new Facture
             {
                 Id = FactureToEdit.Id,
                 Numero = FactureToEdit.Numero,
-                ClientId = FactureToEdit.ClientId
+                ClientId = FactureToEdit.ClientId,
+                DateFacture = FactureToEdit.DateFacture,
+                Lignes = FactureToEdit.Lignes.ToList(),
+                TotalHT = FactureToEdit.TotalHT,
+                TotalTTC = FactureToEdit.TotalTTC
             };
         }
+        else if (facture.Id != 0)
+        {
+            facture = new Facture();
+        }
     }
-
-    private async Task HandleValidSubmit()
-    {
-        // Calcul déjà automatique via propriétés
-        facture.TotalHT = TotalHT;
-        facture.TotalTTC = TotalTTC;
-
-        if (facture.Id == 0)
-            await FactureService.AddAsync(facture);
-        else
-            await FactureService.UpdateAsync(facture);
-
-        // Réinitialiser le formulaire ou naviguer
-    }
-
-    private void AddLigne()
-    {
-        facture.Lignes.Add(new LigneFacture());
-    }
-
-    private void RemoveLigne(LigneFacture ligne)
-    {
-        facture.Lignes.Remove(ligne);
-    }
-
-  
-
 }

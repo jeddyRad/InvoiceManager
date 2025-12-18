@@ -1,11 +1,13 @@
 ﻿@page "/clients"
+@using Microsoft.AspNetCore.Components.Web
 @using InvoiceManager.Components
 @using InvoiceManager.Data.Entities
 @using InvoiceManager.Services.Interfaces
 @inject IClientService ClientService
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode())
 
 <h3>Liste des Clients</h3>
-
+<ClientForm ClientToEdit="selectedClient" OnSaved="HandleSaved" OnCancelled="HandleCancelled" />
 @if (clients == null)
 {
     <p><em>Chargement...</em></p>
@@ -19,6 +21,7 @@ else
                 <th>Nom</th>
                 <th>Email</th>
                 <th>Téléphone</th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -29,6 +32,9 @@ else
                     <td>@client.Nom</td>
                     <td>@client.Email</td>
                     <td>@client.Telephone</td>
+                    <td>
+                        <button type="button" class="btn btn-link" @onclick="() => SelectClient(client)">Éditer</button>
+                    </td>
                 </tr>
             }
         </tbody>
@@ -37,9 +43,26 @@ else
 
 @code {
     private List<Client>? clients;
+    private Client? selectedClient;
 
     protected override async Task OnInitializedAsync()
     {
         clients = await ClientService.GetAllAsync();
+    }
+
+    private void SelectClient(Client client)
+    {
+        selectedClient = client;
+    }
+
+    private async Task HandleSaved()
+    {
+        clients = await ClientService.GetAllAsync();
+        selectedClient = null;
+    }
+
+    private void HandleCancelled()
+    {
+        selectedClient = null;
     }
 }

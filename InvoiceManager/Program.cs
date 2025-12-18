@@ -16,12 +16,23 @@ namespace InvoiceManager
                    options.UseSqlite(
                        builder.Configuration.GetConnectionString("DefaultConnection")
                    ));
+            builder.Logging.ClearProviders();
+            builder.Logging.AddConsole();
+            builder.Logging.SetMinimumLevel(LogLevel.Debug);
+            builder.Logging.AddFilter("Microsoft.AspNetCore.Components", LogLevel.Debug);
             builder.Services.AddScoped<IClientService, ClientService>();
             builder.Services.AddScoped<IFactureService, FactureService>();
             builder.Services.AddRazorComponents()
                 .AddInteractiveServerComponents();
 
             var app = builder.Build();
+
+            // Ensure database is created on first run
+            using (var scope = app.Services.CreateScope())
+            {
+                var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                dbContext.Database.EnsureCreated();
+            }
 
             // Configure the HTTP request pipeline.
             if (!app.Environment.IsDevelopment())

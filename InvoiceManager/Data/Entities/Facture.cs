@@ -11,6 +11,7 @@ namespace InvoiceManager.Data.Entities
 
         public DateTime DateFacture { get; set; } = DateTime.UtcNow;
 
+        [Range(1, int.MaxValue, ErrorMessage = "Sélectionnez un client.")]
         public int ClientId { get; set; }
         public Client Client { get; set; } = null!;
 

@@ -16,6 +16,7 @@ namespace InvoiceManager.Services
         public async Task<List<Client>> GetAllAsync()
         {
             return await _context.Clients
+                .AsNoTracking()
                 .OrderBy(c => c.Nom)
                 .ToListAsync();
         }
@@ -23,7 +24,8 @@ namespace InvoiceManager.Services
         public async Task<Client?> GetByIdAsync(int id)
         {
             return await _context.Clients
-                .FindAsync(id);
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Id == id);
         }
 
         public async Task AddAsync(Client client)
@@ -40,7 +42,7 @@ namespace InvoiceManager.Services
 
         public async Task DeleteAsync(int id)
         {
-            var client = await GetByIdAsync(id);
+            var client = await _context.Clients.FindAsync(id);
             if (client != null)
             {
                 _context.Clients.Remove(client);

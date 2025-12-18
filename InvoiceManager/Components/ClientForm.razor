@@ -2,8 +2,25 @@
 @using System.ComponentModel.DataAnnotations
 @using InvoiceManager.Data.Entities
 @using InvoiceManager.Services.Interfaces
+@using Microsoft.AspNetCore.Components
 
-<EditForm Model="client" OnValidSubmit="HandleValidSubmit">
+@if (!string.IsNullOrEmpty(successMessage))
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @successMessage
+        <button type="button" class="btn-close" @onclick="() => successMessage = null"></button>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @errorMessage
+        <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+    </div>
+}
+
+<EditForm Model="client" OnValidSubmit="HandleValidSubmit" FormName="client-form">
     <DataAnnotationsValidator />
     <ValidationSummary />
 
@@ -26,15 +43,27 @@
     </div>
 
     <button type="submit" class="btn btn-primary">Enregistrer</button>
+    @if (ClientToEdit != null)
+    {
+        <button type="button" class="btn btn-secondary" @onclick="HandleCancel">Annuler</button>
+    }
 </EditForm>
 
 @code {
     [Parameter]
     public Client? ClientToEdit { get; set; }
 
-    private Client client = new Client();
+    [Parameter]
+    public EventCallback OnSaved { get; set; }
 
-    protected override void OnInitialized()
+    [Parameter]
+    public EventCallback OnCancelled { get; set; }
+
+    private Client client = new Client();
+    private string? successMessage;
+    private string? errorMessage;
+
+    protected override void OnParametersSet()
     {
         if (ClientToEdit != null)
         {
@@ -47,15 +76,56 @@
                 Adresse = ClientToEdit.Adresse
             };
         }
+        else
+        {
+            client = new Client();
+        }
+        
+        // Clear messages when switching clients
+        successMessage = null;
+        errorMessage = null;
     }
 
     private async Task HandleValidSubmit()
     {
-        if (client.Id == 0)
-            await ClientService.AddAsync(client);
-        else
-            await ClientService.UpdateAsync(client);
+        try
+        {
+            successMessage = null;
+            errorMessage = null;
 
-        // Optionnel : notifier parent / rafraîchir UI
+            if (client.Id == 0)
+            {
+                await ClientService.AddAsync(client);
+                successMessage = $"Client '{client.Nom}' créé avec succès.";
+            }
+            else
+            {
+                await ClientService.UpdateAsync(client);
+                successMessage = $"Client '{client.Nom}' mis à jour avec succès.";
+            }
+
+            if (OnSaved.HasDelegate)
+            {
+                await OnSaved.InvokeAsync();
+            }
+
+            client = new Client();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Erreur lors de l'enregistrement: {ex.Message}";
+        }
+    }
+
+    private async Task HandleCancel()
+    {
+        client = new Client();
+        successMessage = null;
+        errorMessage = null;
+        
+        if (OnCancelled.HasDelegate)
+        {
+            await OnCancelled.InvokeAsync();
+        }
     }
 }

@@ -29,7 +29,7 @@ namespace InvoiceManager.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Invoices",
+                name: "Factures",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
@@ -37,14 +37,14 @@ namespace InvoiceManager.Migrations
                     Numero = table.Column<string>(type: "TEXT", nullable: false),
                     DateFacture = table.Column<DateTime>(type: "TEXT", nullable: false),
                     ClientId = table.Column<int>(type: "INTEGER", nullable: false),
-                    TotalHT = table.Column<decimal>(type: "TEXT", nullable: false),
-                    TotalTTC = table.Column<decimal>(type: "TEXT", nullable: false)
+                    TotalHT = table.Column<decimal>(type: "TEXT", precision: 18, scale: 2, nullable: false),
+                    TotalTTC = table.Column<decimal>(type: "TEXT", precision: 18, scale: 2, nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Invoices", x => x.Id);
+                    table.PrimaryKey("PK_Factures", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Invoices_Clients_ClientId",
+                        name: "FK_Factures_Clients_ClientId",
                         column: x => x.ClientId,
                         principalTable: "Clients",
                         principalColumn: "Id",
@@ -52,36 +52,35 @@ namespace InvoiceManager.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Products",
+                name: "LigneFactures",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
                     Description = table.Column<string>(type: "TEXT", nullable: false),
                     Quantite = table.Column<int>(type: "INTEGER", nullable: false),
-                    PrixUnitaire = table.Column<decimal>(type: "TEXT", nullable: false),
-                    TotalLigne = table.Column<decimal>(type: "TEXT", nullable: false),
+                    PrixUnitaire = table.Column<decimal>(type: "TEXT", precision: 18, scale: 2, nullable: false),
                     FactureId = table.Column<int>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Products", x => x.Id);
+                    table.PrimaryKey("PK_LigneFactures", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Products_Invoices_FactureId",
+                        name: "FK_LigneFactures_Factures_FactureId",
                         column: x => x.FactureId,
-                        principalTable: "Invoices",
+                        principalTable: "Factures",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_Invoices_ClientId",
-                table: "Invoices",
+                name: "IX_Factures_ClientId",
+                table: "Factures",
                 column: "ClientId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Products_FactureId",
-                table: "Products",
+                name: "IX_LigneFactures_FactureId",
+                table: "LigneFactures",
                 column: "FactureId");
         }
 
@@ -89,10 +88,10 @@ namespace InvoiceManager.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "Products");
+                name: "LigneFactures");
 
             migrationBuilder.DropTable(
-                name: "Invoices");
+                name: "Factures");
 
             migrationBuilder.DropTable(
                 name: "Clients");
