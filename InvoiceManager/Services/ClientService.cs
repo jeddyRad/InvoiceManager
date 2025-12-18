@@ -36,7 +36,20 @@ namespace InvoiceManager.Services
 
         public async Task UpdateAsync(Client client)
         {
-            _context.Clients.Update(client);
+            // Récupérer l'entité existante depuis la base de données
+            var existingClient = await _context.Clients.FindAsync(client.Id);
+            
+            if (existingClient == null)
+            {
+                throw new InvalidOperationException($"Le client avec l'ID {client.Id} n'existe pas.");
+            }
+
+            // Mettre à jour uniquement les propriétés modifiables
+            existingClient.Nom = client.Nom;
+            existingClient.Email = client.Email;
+            existingClient.Telephone = client.Telephone;
+            existingClient.Adresse = client.Adresse;
+
             await _context.SaveChangesAsync();
         }
 

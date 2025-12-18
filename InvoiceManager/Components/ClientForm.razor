@@ -32,7 +32,7 @@
 
     <div class="mb-3">
         <label class="form-label">Email</label>
-        <InputText class="form-control" @bind-Value="client.Email" />
+        <InputText class="form-control" @bind-Value="client.Email" type="email" />
         <ValidationMessage For="@(() => client.Email)" />
     </div>
 
@@ -42,11 +42,18 @@
         <ValidationMessage For="@(() => client.Telephone)" />
     </div>
 
-    <button type="submit" class="btn btn-primary">Enregistrer</button>
-    @if (ClientToEdit != null)
-    {
-        <button type="button" class="btn btn-secondary" @onclick="HandleCancel">Annuler</button>
-    }
+    <div class="mb-3">
+        <label class="form-label">Adresse</label>
+        <InputTextArea class="form-control" @bind-Value="client.Adresse" rows="3" />
+    </div>
+
+    <div class="mt-3">
+        <button type="submit" class="btn btn-primary">Enregistrer</button>
+        @if (ClientToEdit != null)
+        {
+            <button type="button" class="btn btn-secondary ms-2" @onclick="HandleCancel">Fermer</button>
+        }
+    </div>
 </EditForm>
 
 @code {
@@ -108,8 +115,6 @@
             {
                 await OnSaved.InvokeAsync();
             }
-
-            client = new Client();
         }
         catch (Exception ex)
         {

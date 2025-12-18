@@ -10,5 +10,7 @@ namespace InvoiceManager.Services.Interfaces
         Task UpdateAsync(Facture facture);
         Task DeleteAsync(int id);
         Task RecalculerTotauxAsync(int factureId);
+        Task ValiderFactureAsync(int id);
+        Task AnnulerFactureAsync(int id);
     }
 }

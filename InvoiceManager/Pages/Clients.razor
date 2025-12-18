@@ -6,34 +6,61 @@
 @inject IClientService ClientService
 @rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode())
 
-<h3>Liste des Clients</h3>
-<ClientForm ClientToEdit="selectedClient" OnSaved="HandleSaved" OnCancelled="HandleCancelled" />
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>Liste des Clients</h3>
+    @if (!showForm)
+    {
+        <button class="btn btn-primary" @onclick="ShowCreateForm">
+            <i class="bi bi-plus-circle"></i> Nouveau Client
+        </button>
+    }
+</div>
+
+@if (showForm)
+{
+    <div class="card mb-4">
+        <div class="card-body">
+            <h4 class="card-title">@(selectedClient == null ? "Nouveau Client" : $"Modifier {selectedClient.Nom}")</h4>
+            <ClientForm ClientToEdit="selectedClient" OnSaved="HandleSaved" OnCancelled="HandleCancelled" />
+        </div>
+    </div>
+}
+
 @if (clients == null)
 {
-    <p><em>Chargement...</em></p>
+    <div class="text-center p-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Chargement...</span>
+        </div>
+        <p class="mt-2">Chargement des clients...</p>
+    </div>
+}
+else if (!clients.Any())
+{
+    <div class="alert alert-info">
+        <p class="mb-0">Aucun client trouvé. Cliquez sur "Nouveau Client" pour créer votre premier client.</p>
+    </div>
 }
 else
 {
-    <table class="table table-striped">
-        <thead>
+    <table class="table table-striped table-hover">
+        <thead class="table-dark">
             <tr>
-                <th>Id</th>
                 <th>Nom</th>
                 <th>Email</th>
                 <th>Téléphone</th>
-                <th>Actions</th>
+                <th class="text-center">Actions</th>
             </tr>
         </thead>
         <tbody>
             @foreach (var client in clients)
             {
                 <tr>
-                    <td>@client.Id</td>
-                    <td>@client.Nom</td>
+                    <td><strong>@client.Nom</strong></td>
                     <td>@client.Email</td>
                     <td>@client.Telephone</td>
-                    <td>
-                        <button type="button" class="btn btn-link" @onclick="() => SelectClient(client)">Éditer</button>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-sm btn-primary" @onclick="() => SelectClient(client)">Éditer</button>
                     </td>
                 </tr>
             }
@@ -44,25 +71,55 @@ else
 @code {
     private List<Client>? clients;
     private Client? selectedClient;
+    private bool showForm = false;
 
     protected override async Task OnInitializedAsync()
     {
+        try
+        {
+            await LoadClients();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Erreur lors du chargement des clients: {ex.Message}");
+            clients = new List<Client>();
+        }
+    }
+
+    private async Task LoadClients()
+    {
         clients = await ClientService.GetAllAsync();
+    }
+
+    private void ShowCreateForm()
+    {
+        selectedClient = null;
+        showForm = true;
     }
 
     private void SelectClient(Client client)
     {
         selectedClient = client;
+        showForm = true;
     }
 
     private async Task HandleSaved()
     {
-        clients = await ClientService.GetAllAsync();
-        selectedClient = null;
+        try
+        {
+            await LoadClients();
+            showForm = false;
+            selectedClient = null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Erreur lors de la sauvegarde: {ex.Message}");
+        }
     }
 
     private void HandleCancelled()
     {
+        showForm = false;
         selectedClient = null;
     }
 }
