@@ -1,10 +1,12 @@
 ﻿@page "/clients"
+@using InvoiceManager.Components
 @using InvoiceManager.Data.Entities
 @using InvoiceManager.Services.Interfaces
 @inject IClientService ClientService
 
 <h3>Liste des Clients</h3>
-
+<h3>Ajouter / Editer Clients</h3>
+<ClientForm/>
 @if (clients == null)
 {
     <p><em>Chargement...</em></p>

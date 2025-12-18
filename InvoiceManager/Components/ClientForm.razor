@@ -1,0 +1,61 @@
+﻿@inject IClientService ClientService
+@using System.ComponentModel.DataAnnotations
+@using InvoiceManager.Data.Entities
+@using InvoiceManager.Services.Interfaces
+
+<EditForm Model="client" OnValidSubmit="HandleValidSubmit">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="mb-3">
+        <label class="form-label">Nom</label>
+        <InputText class="form-control" @bind-Value="client.Nom" />
+        <ValidationMessage For="@(() => client.Nom)" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Email</label>
+        <InputText class="form-control" @bind-Value="client.Email" />
+        <ValidationMessage For="@(() => client.Email)" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Téléphone</label>
+        <InputText class="form-control" @bind-Value="client.Telephone" />
+        <ValidationMessage For="@(() => client.Telephone)" />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Enregistrer</button>
+</EditForm>
+
+@code {
+    [Parameter]
+    public Client? ClientToEdit { get; set; }
+
+    private Client client = new Client();
+
+    protected override void OnInitialized()
+    {
+        if (ClientToEdit != null)
+        {
+            client = new Client
+            {
+                Id = ClientToEdit.Id,
+                Nom = ClientToEdit.Nom,
+                Email = ClientToEdit.Email,
+                Telephone = ClientToEdit.Telephone,
+                Adresse = ClientToEdit.Adresse
+            };
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        if (client.Id == 0)
+            await ClientService.AddAsync(client);
+        else
+            await ClientService.UpdateAsync(client);
+
+        // Optionnel : notifier parent / rafraîchir UI
+    }
+}
