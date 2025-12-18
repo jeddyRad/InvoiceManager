@@ -44,9 +44,18 @@
         @foreach (var ligne in facture.Lignes)
         {
             <tr>
-                <td><InputText @bind-Value="ligne.Description" class="form-control" /></td>
-                <td><InputNumber @bind-Value="ligne.Quantite" class="form-control" /></td>
-                <td><InputNumber @bind-Value="ligne.PrixUnitaire" class="form-control" /></td>
+                <td>
+                    <InputText class="form-control" @bind-Value="ligne.Description" />
+                    <ValidationMessage For="@(() => ligne.Description)" />
+                </td>
+                <td>
+                    <InputNumber class="form-control" @bind-Value="ligne.Quantite" />
+                    <ValidationMessage For="@(() => ligne.Quantite)" />
+                </td>
+                <td>
+                    <InputNumber class="form-control" @bind-Value="ligne.PrixUnitaire" />
+                    <ValidationMessage For="@(() => ligne.PrixUnitaire)" />
+                </td>
                 <td>@ligne.TotalLigne</td>
                 <td>
                     <button type="button" class="btn btn-danger btn-sm" @onclick="@(() => RemoveLigne(ligne))">Supprimer</button>
@@ -58,13 +67,18 @@
 
 <button type="button" class="btn btn-secondary" @onclick="AddLigne">Ajouter une ligne</button>
 
-<p>Total HT : @facture.Lignes.Sum(l => l.TotalLigne)</p>
-<p>Total TTC : @(facture.Lignes.Sum(l => l.TotalLigne))</p> <!-- TVA simplifiée -->
+<p><strong>Total HT :</strong> @TotalHT</p>
+<p><strong>TVA (20%) :</strong> @Tva</p>
+<p><strong>Total TTC :</strong> @TotalTTC</p>
+
 @code {
     [Parameter] public Facture? FactureToEdit { get; set; }
 
     private Facture facture = new Facture();
     private List<Client> clients = new();
+    private decimal TotalHT => facture.Lignes.Sum(l => l.TotalLigne);
+    private decimal Tva => TotalHT * 0.2m; // TVA 20%
+    private decimal TotalTTC => TotalHT + Tva;
 
     protected override async Task OnInitializedAsync()
     {
@@ -83,9 +97,9 @@
 
     private async Task HandleValidSubmit()
     {
-        // Calculer les totaux avant persistance
-        facture.TotalHT = facture.Lignes.Sum(l => l.TotalLigne);
-        facture.TotalTTC = facture.TotalHT; // TVA à implémenter
+        // Calcul déjà automatique via propriétés
+        facture.TotalHT = TotalHT;
+        facture.TotalTTC = TotalTTC;
 
         if (facture.Id == 0)
             await FactureService.AddAsync(facture);
