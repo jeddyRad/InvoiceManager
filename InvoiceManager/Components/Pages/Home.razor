@@ -1,7 +1,167 @@
 ﻿@page "/"
+@using InvoiceManager.Services.Interfaces
+@inject IAppStateService AppState
+@inject ILogger<Home> Logger
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+@implements IDisposable
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Tableau de bord - InvoiceManager</PageTitle>
 
-<h1>Hello, world!</h1>
+<h1>Tableau de bord</h1>
 
-Welcome to your new app.
+<p class="lead">Bienvenue dans votre gestionnaire de factures</p>
+
+@if (isLoading)
+{
+    <div class="text-center p-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Chargement...</span>
+        </div>
+        <p class="mt-2">Chargement des statistiques...</p>
+    </div>
+}
+else
+{
+    <div class="row g-4 mb-4">
+        <div class="col-md-4">
+            <div class="card border-primary">
+                <div class="card-body">
+                    <h5 class="card-title text-primary">
+                        <i class="bi bi-people-fill"></i> Clients
+                    </h5>
+                    <p class="display-4">@AppState.TotalClients</p>
+                    <p class="text-muted">Clients enregistrés</p>
+                    <button class="btn btn-sm btn-primary" @onclick="NavigateToClients">
+                        Voir les clients
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-success">
+                <div class="card-body">
+                    <h5 class="card-title text-success">
+                        <i class="bi bi-file-earmark-text-fill"></i> Factures
+                    </h5>
+                    <p class="display-4">@AppState.TotalFactures</p>
+                    <p class="text-muted">Factures créées</p>
+                    <button class="btn btn-sm btn-success" @onclick="NavigateToFactures">
+                        Voir les factures
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-info">
+                <div class="card-body">
+                    <h5 class="card-title text-info">
+                        <i class="bi bi-cash-stack"></i> Chiffre d'affaires
+                    </h5>
+                    <p class="display-4">@AppState.TotalFacturesValidees.ToString("C")</p>
+                    <p class="text-muted">Factures validées</p>
+                    <button class="btn btn-sm btn-info" @onclick="RefreshStatistics">
+                        <i class="bi bi-arrow-clockwise"></i> Actualiser
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Actions rapides</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2 d-md-flex">
+                        <button class="btn btn-primary" @onclick="NavigateToNewClient">
+                            <i class="bi bi-person-plus-fill"></i> Nouveau client
+                        </button>
+                        <button class="btn btn-success" @onclick="NavigateToNewFacture">
+                            <i class="bi bi-file-earmark-plus-fill"></i> Nouvelle facture
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool isLoading = true;
+    private bool shouldRender = true;
+
+    protected override bool ShouldRender() => shouldRender;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Logger.LogInformation("Chargement du tableau de bord");
+            AppState.OnChange += StateHasChanged;
+            await AppState.RefreshStatisticsAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Erreur lors du chargement du tableau de bord");
+        }
+        finally
+        {
+            isLoading = false;
+            shouldRender = true;
+        }
+    }
+
+    private async Task RefreshStatistics()
+    {
+        shouldRender = true;
+        isLoading = true;
+        try
+        {
+            Logger.LogInformation("Actualisation des statistiques");
+            await AppState.RefreshStatisticsAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Erreur lors de l'actualisation");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void NavigateToClients()
+    {
+        Logger.LogDebug("Navigation vers Clients");
+        Navigation.NavigateTo("/clients");
+    }
+
+    private void NavigateToFactures()
+    {
+        Logger.LogDebug("Navigation vers Factures");
+        Navigation.NavigateTo("/factures");
+    }
+
+    private void NavigateToNewClient()
+    {
+        Logger.LogDebug("Navigation vers Nouveau Client");
+        Navigation.NavigateTo("/clients");
+    }
+
+    private void NavigateToNewFacture()
+    {
+        Logger.LogDebug("Navigation vers Nouvelle Facture");
+        Navigation.NavigateTo("/factures");
+    }
+
+    public void Dispose()
+    {
+        AppState.OnChange -= StateHasChanged;
+        Logger.LogDebug("Disposal du tableau de bord");
+    }
+}

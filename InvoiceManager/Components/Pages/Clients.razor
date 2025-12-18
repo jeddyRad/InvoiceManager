@@ -1,10 +1,14 @@
-ï»¿@page "/clients"
+@page "/clients"
 @using Microsoft.AspNetCore.Components.Web
 @using InvoiceManager.Components
 @using InvoiceManager.Data.Entities
 @using InvoiceManager.Services.Interfaces
 @inject IClientService ClientService
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode())
+@inject ILogger<Clients> Logger
+@rendermode InteractiveServer
+@implements IDisposable
+
+<PageTitle>Clients - InvoiceManager</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h3>Liste des Clients</h3>
@@ -38,7 +42,7 @@
 else if (!clients.Any())
 {
     <div class="alert alert-info">
-        <p class="mb-0">Aucun client trouvÃ©. Cliquez sur "Nouveau Client" pour crÃ©er votre premier client.</p>
+        <p class="mb-0">Aucun client trouvé. Cliquez sur "Nouveau Client" pour créer votre premier client.</p>
     </div>
 }
 else
@@ -48,22 +52,21 @@ else
             <tr>
                 <th>Nom</th>
                 <th>Email</th>
-                <th>TÃ©lÃ©phone</th>
+                <th>Téléphone</th>
                 <th class="text-center">Actions</th>
             </tr>
         </thead>
         <tbody>
-            @foreach (var client in clients)
-            {
+            <Virtualize Items="@clients" Context="client">
                 <tr>
                     <td><strong>@client.Nom</strong></td>
                     <td>@client.Email</td>
                     <td>@client.Telephone</td>
                     <td class="text-center">
-                        <button type="button" class="btn btn-sm btn-primary" @onclick="() => SelectClient(client)">Ã‰diter</button>
+                        <button type="button" class="btn btn-sm btn-primary" @onclick="() => SelectClient(client)">Éditer</button>
                     </td>
                 </tr>
-            }
+            </Virtualize>
         </tbody>
     </table>
 }
@@ -72,33 +75,41 @@ else
     private List<Client>? clients;
     private Client? selectedClient;
     private bool showForm = false;
+    private bool shouldRender = true;
+
+    protected override bool ShouldRender() => shouldRender;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
+            Logger.LogInformation("Chargement de la page Clients");
             await LoadClients();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Erreur lors du chargement des clients: {ex.Message}");
+            Logger.LogError(ex, "Erreur lors du chargement des clients");
             clients = new List<Client>();
         }
     }
 
     private async Task LoadClients()
     {
+        shouldRender = true;
         clients = await ClientService.GetAllAsync();
+        Logger.LogInformation("Chargement de {Count} clients", clients.Count);
     }
 
     private void ShowCreateForm()
     {
+        shouldRender = true;
         selectedClient = null;
         showForm = true;
     }
 
     private void SelectClient(Client client)
     {
+        shouldRender = true;
         selectedClient = client;
         showForm = true;
     }
@@ -107,19 +118,28 @@ else
     {
         try
         {
+            shouldRender = true;
             await LoadClients();
             showForm = false;
             selectedClient = null;
+            Logger.LogInformation("Client sauvegardé avec succès");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Erreur lors de la sauvegarde: {ex.Message}");
+            Logger.LogError(ex, "Erreur lors de la sauvegarde du client");
         }
     }
 
     private void HandleCancelled()
     {
+        shouldRender = true;
         showForm = false;
         selectedClient = null;
+    }
+
+    public void Dispose()
+    {
+        Logger.LogDebug("Disposal de la page Clients");
+        // Libération des ressources si nécessaire
     }
 }

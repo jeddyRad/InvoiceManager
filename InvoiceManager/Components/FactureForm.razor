@@ -1,8 +1,10 @@
 ﻿@inject IFactureService FactureService
 @inject IClientService ClientService
+@inject ILogger<FactureForm> Logger
 @using InvoiceManager.Data.Entities
 @using InvoiceManager.Services.Interfaces
 @using Microsoft.AspNetCore.Components
+@implements IDisposable
 
 @if (!string.IsNullOrEmpty(successMessage))
 {
@@ -115,9 +117,9 @@
     }
 
     <div class="card bg-light p-3">
-        <p class="mb-1"><strong>Total HT :</strong> @TotalHT.ToString("C")</p>
-        <p class="mb-1"><strong>TVA (20%) :</strong> @Tva.ToString("C")</p>
-        <p class="mb-0 fs-5"><strong>Total TTC :</strong> @TotalTTC.ToString("C")</p>
+        <p class="mb-1"><strong>Total HT :</strong> @facture.TotalHT.ToString("C")</p>
+        <p class="mb-1"><strong>TVA (20%) :</strong> @facture.TVA.ToString("C")</p>
+        <p class="mb-0 fs-5"><strong>Total TTC :</strong> @facture.TotalTTC.ToString("C")</p>
     </div>
 
     <div class="mt-3">
@@ -152,21 +154,30 @@
     private List<Client> clients = new();
     private string? successMessage;
     private string? errorMessage;
+    private bool shouldRender = true;
 
-    private bool IsReadOnly => facture.Statut != FactureStatut.Brouillon;
+    private bool IsReadOnly => !facture.PeutEtreModifiee();
 
-    private decimal TotalHT => facture.Lignes.Sum(l => l.TotalLigne);
-    private decimal Tva => TotalHT * 0.2m;
-    private decimal TotalTTC => TotalHT + Tva;
+    protected override bool ShouldRender() => shouldRender;
 
     protected override async Task OnInitializedAsync()
     {
-        clients = await ClientService.GetAllAsync();
-        SyncFromParameters();
+        try
+        {
+            Logger.LogDebug("Initialisation du formulaire de facture");
+            clients = await ClientService.GetAllAsync();
+            SyncFromParameters();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Erreur lors de l'initialisation du formulaire");
+            errorMessage = "Erreur lors du chargement du formulaire.";
+        }
     }
 
     protected override void OnParametersSet()
     {
+        shouldRender = true;
         SyncFromParameters();
         successMessage = null;
         errorMessage = null;
@@ -176,8 +187,9 @@
     {
         if (int.TryParse(e.Value?.ToString(), out int quantite))
         {
+            shouldRender = true;
             ligne.Quantite = quantite;
-            StateHasChanged();
+            facture.CalculerTotaux();
         }
     }
 
@@ -185,8 +197,9 @@
     {
         if (decimal.TryParse(e.Value?.ToString(), out decimal prix))
         {
+            shouldRender = true;
             ligne.PrixUnitaire = prix;
-            StateHasChanged();
+            facture.CalculerTotaux();
         }
     }
 
@@ -194,6 +207,7 @@
     {
         try
         {
+            shouldRender = true;
             successMessage = null;
             errorMessage = null;
 
@@ -203,17 +217,16 @@
                 return;
             }
 
-            facture.TotalHT = TotalHT;
-            facture.TotalTTC = TotalTTC;
-
             if (facture.Id == 0)
             {
                 await FactureService.AddAsync(facture);
-                successMessage = $"Facture créée avec succès.";
+                Logger.LogInformation("Nouvelle facture créée: {Numero}", facture.Numero);
+                successMessage = $"Facture '{facture.Numero}' créée avec succès.";
             }
             else
             {
                 await FactureService.UpdateAsync(facture);
+                Logger.LogInformation("Facture mise à jour: {Numero}", facture.Numero);
                 successMessage = $"Facture '{facture.Numero}' mise à jour avec succès.";
             }
 
@@ -224,6 +237,7 @@
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Erreur lors de l'enregistrement de la facture");
             errorMessage = $"Erreur lors de l'enregistrement: {ex.Message}";
         }
     }
@@ -232,22 +246,19 @@
     {
         try
         {
-            if (facture.Lignes.Count == 0)
-            {
-                errorMessage = "Impossible de valider une facture sans ligne.";
-                return;
-            }
-
+            shouldRender = true;
             if (facture.Id != 0)
             {
                 await FactureService.ValiderFactureAsync(facture.Id);
                 facture.Statut = FactureStatut.Validee;
+                Logger.LogInformation("Facture validée: {Numero}", facture.Numero);
                 successMessage = "Facture validée avec succès. Elle ne peut plus être modifiée.";
                 if (OnSaved.HasDelegate) await OnSaved.InvokeAsync();
             }
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Erreur lors de la validation de la facture");
             errorMessage = $"Erreur lors de la validation: {ex.Message}";
         }
     }
@@ -256,34 +267,39 @@
     {
         try
         {
+            shouldRender = true;
             if (facture.Id != 0)
             {
                 await FactureService.AnnulerFactureAsync(facture.Id);
                 facture.Statut = FactureStatut.Annulee;
+                Logger.LogInformation("Facture annulée: {Numero}", facture.Numero);
                 successMessage = "Facture annulée.";
                 if (OnSaved.HasDelegate) await OnSaved.InvokeAsync();
             }
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Erreur lors de l'annulation de la facture");
             errorMessage = $"Erreur lors de l'annulation: {ex.Message}";
         }
     }
 
     private void AddLigne()
     {
+        shouldRender = true;
         facture.Lignes.Add(new LigneFacture());
-        StateHasChanged();
     }
 
     private void RemoveLigne(LigneFacture ligne)
     {
+        shouldRender = true;
         facture.Lignes.Remove(ligne);
-        StateHasChanged();
+        facture.CalculerTotaux();
     }
 
     private async Task HandleCancel()
     {
+        shouldRender = true;
         facture = new Facture();
         successMessage = null;
         errorMessage = null;
@@ -304,11 +320,17 @@
                 Numero = FactureToEdit.Numero,
                 ClientId = FactureToEdit.ClientId,
                 DateFacture = FactureToEdit.DateFacture,
-                Lignes = FactureToEdit.Lignes.ToList(),
-                TotalHT = FactureToEdit.TotalHT,
-                TotalTTC = FactureToEdit.TotalTTC,
-                Statut = FactureToEdit.Statut
+                Statut = FactureToEdit.Statut,
+                Lignes = FactureToEdit.Lignes.Select(l => new LigneFacture
+                {
+                    Id = l.Id,
+                    Description = l.Description,
+                    Quantite = l.Quantite,
+                    PrixUnitaire = l.PrixUnitaire,
+                    FactureId = l.FactureId
+                }).ToList()
             };
+            facture.CalculerTotaux();
         }
         else if (facture.Id != 0)
         {
@@ -323,4 +345,9 @@
         FactureStatut.Annulee => "bg-danger",
         _ => "bg-secondary"
     };
+
+    public void Dispose()
+    {
+        Logger.LogDebug("Disposal du formulaire de facture");
+    }
 }

@@ -1,8 +1,10 @@
 ﻿@inject IClientService ClientService
+@inject ILogger<ClientForm> Logger
 @using System.ComponentModel.DataAnnotations
 @using InvoiceManager.Data.Entities
 @using InvoiceManager.Services.Interfaces
 @using Microsoft.AspNetCore.Components
+@implements IDisposable
 
 @if (!string.IsNullOrEmpty(successMessage))
 {
@@ -69,9 +71,13 @@
     private Client client = new Client();
     private string? successMessage;
     private string? errorMessage;
+    private bool shouldRender = true;
+
+    protected override bool ShouldRender() => shouldRender;
 
     protected override void OnParametersSet()
     {
+        shouldRender = true;
         if (ClientToEdit != null)
         {
             client = new Client
@@ -97,17 +103,20 @@
     {
         try
         {
+            shouldRender = true;
             successMessage = null;
             errorMessage = null;
 
             if (client.Id == 0)
             {
                 await ClientService.AddAsync(client);
+                Logger.LogInformation("Nouveau client créé: {Nom}", client.Nom);
                 successMessage = $"Client '{client.Nom}' créé avec succès.";
             }
             else
             {
                 await ClientService.UpdateAsync(client);
+                Logger.LogInformation("Client mis à jour: {Nom}", client.Nom);
                 successMessage = $"Client '{client.Nom}' mis à jour avec succès.";
             }
 
@@ -118,12 +127,14 @@
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Erreur lors de l'enregistrement du client");
             errorMessage = $"Erreur lors de l'enregistrement: {ex.Message}";
         }
     }
 
     private async Task HandleCancel()
     {
+        shouldRender = true;
         client = new Client();
         successMessage = null;
         errorMessage = null;
@@ -132,5 +143,10 @@
         {
             await OnCancelled.InvokeAsync();
         }
+    }
+
+    public void Dispose()
+    {
+        Logger.LogDebug("Disposal du formulaire client");
     }
 }

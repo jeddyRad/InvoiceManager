@@ -16,12 +16,19 @@ namespace InvoiceManager
                    options.UseSqlite(
                        builder.Configuration.GetConnectionString("DefaultConnection")
                    ));
+            
+            // Configuration du logging
             builder.Logging.ClearProviders();
             builder.Logging.AddConsole();
-            builder.Logging.SetMinimumLevel(LogLevel.Debug);
-            builder.Logging.AddFilter("Microsoft.AspNetCore.Components", LogLevel.Debug);
+            builder.Logging.SetMinimumLevel(LogLevel.Information);
+            builder.Logging.AddFilter("Microsoft.AspNetCore.Components", LogLevel.Warning);
+            builder.Logging.AddFilter("Microsoft.EntityFrameworkCore", LogLevel.Warning);
+            
+            // Enregistrement des services métier
             builder.Services.AddScoped<IClientService, ClientService>();
             builder.Services.AddScoped<IFactureService, FactureService>();
+            builder.Services.AddScoped<IAppStateService, AppStateService>();
+            
             builder.Services.AddRazorComponents()
                 .AddInteractiveServerComponents();
 

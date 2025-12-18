@@ -2,6 +2,7 @@
 using InvoiceManager.Data.Entities;
 using InvoiceManager.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 
 namespace InvoiceManager.Services
@@ -9,168 +10,265 @@ namespace InvoiceManager.Services
     public class FactureService : IFactureService
     {
         private readonly AppDbContext _context;
+        private readonly ILogger<FactureService> _logger;
 
-        public FactureService(AppDbContext context)
+        public FactureService(AppDbContext context, ILogger<FactureService> logger)
         {
             _context = context;
+            _logger = logger;
         }
 
         public async Task<List<Facture>> GetAllAsync()
         {
-            return await _context.Factures
-                .AsNoTracking()
-                .Include(f => f.Client)
-                .OrderByDescending(f => f.DateFacture)
-                .ToListAsync();
+            _logger.LogInformation("Récupération de toutes les factures");
+            try
+            {
+                var factures = await _context.Factures
+                    .AsNoTracking()
+                    .Include(f => f.Client)
+                    .OrderByDescending(f => f.DateFacture)
+                    .ToListAsync();
+
+                _logger.LogInformation("Récupération de {Count} factures", factures.Count);
+                return factures;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erreur lors de la récupération des factures");
+                throw;
+            }
         }
 
         public async Task<Facture?> GetByIdAsync(int id)
         {
-            return await _context.Factures
-                .AsNoTracking()
-                .Include(f => f.Client)
-                .Include(f => f.Lignes)
-                .FirstOrDefaultAsync(f => f.Id == id);
+            _logger.LogInformation("Récupération de la facture {FactureId}", id);
+            try
+            {
+                var facture = await _context.Factures
+                    .AsNoTracking()
+                    .Include(f => f.Client)
+                    .Include(f => f.Lignes)
+                    .FirstOrDefaultAsync(f => f.Id == id);
+
+                if (facture == null)
+                {
+                    _logger.LogWarning("Facture {FactureId} introuvable", id);
+                }
+
+                return facture;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erreur lors de la récupération de la facture {FactureId}", id);
+                throw;
+            }
         }
 
         public async Task AddAsync(Facture facture)
         {
-            // Auto-generate number: FAC-YYYYMM-XXXX
-            var count = await _context.Factures.CountAsync() + 1;
-            facture.Numero = $"FAC-{DateTime.Now:yyyyMM}-{count:0000}";
-            facture.DateFacture = DateTime.Now;
-            facture.Statut = FactureStatut.Brouillon;
+            _logger.LogInformation("Création d'une nouvelle facture pour le client {ClientId}", facture.ClientId);
+            try
+            {
+                var count = await _context.Factures.CountAsync() + 1;
+                facture.Numero = $"FAC-{DateTime.Now:yyyyMM}-{count:0000}";
+                facture.DateFacture = DateTime.Now;
+                facture.Statut = FactureStatut.Brouillon;
 
-            _context.Factures.Add(facture);
-            await _context.SaveChangesAsync();
+                facture.CalculerTotaux();
+
+                _context.Factures.Add(facture);
+                await _context.SaveChangesAsync();
+                
+                _logger.LogInformation("Facture {Numero} créée avec succès (ID: {FactureId})", facture.Numero, facture.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erreur lors de la création de la facture");
+                throw;
+            }
         }
 
         public async Task UpdateAsync(Facture facture)
         {
-            // Détacher toutes les entités potentiellement suivies
-            DetachTrackedEntities(facture.Id);
-
-            var existing = await _context.Factures
-                .Include(f => f.Lignes)
-                .FirstOrDefaultAsync(f => f.Id == facture.Id);
-
-            if (existing == null)
+            _logger.LogInformation("Mise à jour de la facture {FactureId}", facture.Id);
+            try
             {
-                throw new InvalidOperationException($"La facture avec l'ID {facture.Id} n'existe pas.");
-            }
+                DetachTrackedEntities(facture.Id);
 
-            if (existing.Statut != FactureStatut.Brouillon)
-            {
-                throw new InvalidOperationException("Impossible de modifier une facture validée ou annulée.");
-            }
+                var existing = await _context.Factures
+                    .Include(f => f.Lignes)
+                    .FirstOrDefaultAsync(f => f.Id == facture.Id);
 
-            // Mettre à jour les propriétés scalaires
-            existing.DateFacture = facture.DateFacture;
-            existing.ClientId = facture.ClientId;
-            existing.TotalHT = facture.TotalHT;
-            existing.TotalTTC = facture.TotalTTC;
-
-            // Synchroniser les lignes
-            // Supprimer les lignes qui ne sont plus présentes
-            var incomingIds = facture.Lignes.Where(l => l.Id != 0).Select(l => l.Id).ToHashSet();
-            var toRemove = existing.Lignes.Where(l => !incomingIds.Contains(l.Id)).ToList();
-            foreach (var del in toRemove)
-            {
-                _context.LigneFactures.Remove(del);
-            }
-
-            // Ajouter ou mettre à jour les lignes
-            foreach (var line in facture.Lignes)
-            {
-                if (line.Id == 0)
+                if (existing == null)
                 {
-                    // Nouvelle ligne
-                    existing.Lignes.Add(new LigneFacture
-                    {
-                        Description = line.Description,
-                        Quantite = line.Quantite,
-                        PrixUnitaire = line.PrixUnitaire,
-                        FactureId = existing.Id
-                    });
+                    _logger.LogWarning("Impossible de mettre à jour la facture {FactureId}: facture introuvable", facture.Id);
+                    throw new InvalidOperationException($"La facture avec l'ID {facture.Id} n'existe pas.");
                 }
-                else
+
+                if (!existing.PeutEtreModifiee())
                 {
-                    // Mise à jour d'une ligne existante
-                    var target = existing.Lignes.FirstOrDefault(l => l.Id == line.Id);
-                    if (target != null)
+                    _logger.LogWarning("Tentative de modification de la facture {FactureId} avec statut {Statut}", 
+                        facture.Id, existing.Statut);
+                    throw new InvalidOperationException("Impossible de modifier une facture validée ou annulée.");
+                }
+
+                existing.DateFacture = facture.DateFacture;
+                existing.ClientId = facture.ClientId;
+
+                var incomingIds = facture.Lignes.Where(l => l.Id != 0).Select(l => l.Id).ToHashSet();
+                var toRemove = existing.Lignes.Where(l => !incomingIds.Contains(l.Id)).ToList();
+                
+                _logger.LogDebug("Suppression de {Count} lignes", toRemove.Count);
+                foreach (var del in toRemove)
+                {
+                    _context.LigneFactures.Remove(del);
+                }
+
+                foreach (var line in facture.Lignes)
+                {
+                    if (line.Id == 0)
                     {
-                        target.Description = line.Description;
-                        target.Quantite = line.Quantite;
-                        target.PrixUnitaire = line.PrixUnitaire;
+                        _logger.LogDebug("Ajout d'une nouvelle ligne: {Description}", line.Description);
+                        existing.Lignes.Add(new LigneFacture
+                        {
+                            Description = line.Description,
+                            Quantite = line.Quantite,
+                            PrixUnitaire = line.PrixUnitaire,
+                            FactureId = existing.Id
+                        });
+                    }
+                    else
+                    {
+                        var target = existing.Lignes.FirstOrDefault(l => l.Id == line.Id);
+                        if (target != null)
+                        {
+                            target.Description = line.Description;
+                            target.Quantite = line.Quantite;
+                            target.PrixUnitaire = line.PrixUnitaire;
+                        }
                     }
                 }
-            }
 
-            await _context.SaveChangesAsync();
+                existing.CalculerTotaux();
+                await _context.SaveChangesAsync();
+                
+                _logger.LogInformation("Facture {FactureId} mise à jour avec succès", facture.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erreur lors de la mise à jour de la facture {FactureId}", facture.Id);
+                throw;
+            }
         }
 
         public async Task DeleteAsync(int id)
         {
-            var facture = await _context.Factures.FindAsync(id);
-            if (facture != null)
+            _logger.LogInformation("Suppression de la facture {FactureId}", id);
+            try
             {
-                if (facture.Statut != FactureStatut.Brouillon)
+                var facture = await _context.Factures.FindAsync(id);
+                if (facture != null)
                 {
-                    throw new InvalidOperationException("Seules les factures brouillon peuvent être supprimées.");
+                    if (!facture.PeutEtreModifiee())
+                    {
+                        _logger.LogWarning("Impossible de supprimer la facture {FactureId} avec statut {Statut}", 
+                            id, facture.Statut);
+                        throw new InvalidOperationException("Seules les factures brouillon peuvent être supprimées.");
+                    }
+                    _context.Factures.Remove(facture);
+                    await _context.SaveChangesAsync();
+                    _logger.LogInformation("Facture {FactureId} ({Numero}) supprimée", id, facture.Numero);
                 }
-                _context.Factures.Remove(facture);
-                await _context.SaveChangesAsync();
+                else
+                {
+                    _logger.LogWarning("Impossible de supprimer la facture {FactureId}: facture introuvable", id);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erreur lors de la suppression de la facture {FactureId}", id);
+                throw;
             }
         }
 
         public async Task RecalculerTotauxAsync(int factureId)
         {
-            var facture = await _context.Factures
-                .Include(f => f.Lignes)
-                .FirstOrDefaultAsync(f => f.Id == factureId);
-            if (facture == null)
-                return;
-            
-            facture.TotalHT = facture.Lignes.Sum(l => l.TotalLigne);
-            facture.TotalTTC = facture.TotalHT * 1.2m;
-
-            await _context.SaveChangesAsync();
+            _logger.LogInformation("Recalcul des totaux de la facture {FactureId}", factureId);
+            try
+            {
+                var facture = await _context.Factures
+                    .Include(f => f.Lignes)
+                    .FirstOrDefaultAsync(f => f.Id == factureId);
+                
+                if (facture == null)
+                {
+                    _logger.LogWarning("Impossible de recalculer les totaux: facture {FactureId} introuvable", factureId);
+                    return;
+                }
+                
+                facture.CalculerTotaux();
+                await _context.SaveChangesAsync();
+                
+                _logger.LogInformation("Totaux recalculés pour la facture {FactureId}: HT={TotalHT:C}, TTC={TotalTTC:C}", 
+                    factureId, facture.TotalHT, facture.TotalTTC);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erreur lors du recalcul des totaux de la facture {FactureId}", factureId);
+                throw;
+            }
         }
 
         public async Task ValiderFactureAsync(int id)
         {
-            var facture = await _context.Factures
-                .Include(f => f.Lignes)
-                .FirstOrDefaultAsync(f => f.Id == id);
-            
-            if (facture == null)
-                throw new InvalidOperationException("Facture introuvable.");
+            _logger.LogInformation("Validation de la facture {FactureId}", id);
+            try
+            {
+                var facture = await _context.Factures
+                    .Include(f => f.Lignes)
+                    .FirstOrDefaultAsync(f => f.Id == id);
+                
+                if (facture == null)
+                {
+                    _logger.LogWarning("Impossible de valider la facture {FactureId}: facture introuvable", id);
+                    throw new InvalidOperationException("Facture introuvable.");
+                }
 
-            if (facture.Statut != FactureStatut.Brouillon)
-                throw new InvalidOperationException("Seules les factures en brouillon peuvent être validées.");
-
-            if (!facture.Lignes.Any())
-                throw new InvalidOperationException("Impossible de valider une facture sans ligne.");
-
-            if (facture.ClientId == 0)
-                throw new InvalidOperationException("Un client doit être sélectionné.");
-
-            facture.Statut = FactureStatut.Validee;
-            await _context.SaveChangesAsync();
+                facture.Valider();
+                await _context.SaveChangesAsync();
+                
+                _logger.LogInformation("Facture {FactureId} ({Numero}) validée avec succès", id, facture.Numero);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erreur lors de la validation de la facture {FactureId}", id);
+                throw;
+            }
         }
 
         public async Task AnnulerFactureAsync(int id)
         {
-            var facture = await _context.Factures.FindAsync(id);
-            
-            if (facture == null)
-                throw new InvalidOperationException("Facture introuvable.");
+            _logger.LogInformation("Annulation de la facture {FactureId}", id);
+            try
+            {
+                var facture = await _context.Factures.FindAsync(id);
+                
+                if (facture == null)
+                {
+                    _logger.LogWarning("Impossible d'annuler la facture {FactureId}: facture introuvable", id);
+                    throw new InvalidOperationException("Facture introuvable.");
+                }
 
-            if (facture.Statut != FactureStatut.Validee)
-                throw new InvalidOperationException("Seules les factures validées peuvent être annulées.");
-
-            facture.Statut = FactureStatut.Annulee;
-            await _context.SaveChangesAsync();
+                facture.Annuler();
+                await _context.SaveChangesAsync();
+                
+                _logger.LogInformation("Facture {FactureId} ({Numero}) annulée", id, facture.Numero);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erreur lors de l'annulation de la facture {FactureId}", id);
+                throw;
+            }
         }
 
         /// <summary>
@@ -199,4 +297,3 @@ namespace InvoiceManager.Services
         }
     }
 }
-        
