@@ -4,6 +4,7 @@ using InvoiceManager.Data;
 using InvoiceManager.Services;
 using InvoiceManager.Services.Interfaces;
 using System.Globalization;
+using System.Text;
 
 namespace InvoiceManager
 {
@@ -11,6 +12,11 @@ namespace InvoiceManager
     {
         public static void Main(string[] args)
         {
+            // Forcer l'encodage UTF-8 pour toute l'application
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            Console.OutputEncoding = Encoding.UTF8;
+            Console.InputEncoding = Encoding.UTF8;
+
             // Configuration de la culture pour l'Ariary Malgache
             var cultureInfo = new CultureInfo("mg-MG"); // Culture malgache
             cultureInfo.NumberFormat.CurrencySymbol = "Ar"; // Symbole Ariary
@@ -23,6 +29,12 @@ namespace InvoiceManager
             CultureInfo.DefaultThreadCurrentUICulture = cultureInfo;
 
             var builder = WebApplication.CreateBuilder(args);
+
+            // Configuration de l'encodage pour Kestrel
+            builder.WebHost.ConfigureKestrel(options =>
+            {
+                options.AddServerHeader = false;
+            });
 
             // Add services to the container.
             builder.Services.AddDbContext<AppDbContext>(options =>
@@ -61,6 +73,13 @@ namespace InvoiceManager
                 // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
                 app.UseHsts();
             }
+
+            // Configuration des headers pour l'encodage UTF-8
+            app.Use(async (context, next) =>
+            {
+                context.Response.Headers["Content-Type"] = "text/html; charset=utf-8";
+                await next();
+            });
 
             app.UseHttpsRedirection();
 
