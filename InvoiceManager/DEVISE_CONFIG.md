@@ -12,7 +12,8 @@ Configuration de la culture malgache :
 var cultureInfo = new CultureInfo("mg-MG");
 cultureInfo.NumberFormat.CurrencySymbol = "Ar";
 cultureInfo.NumberFormat.CurrencyDecimalDigits = 0; // Pas de centimes
-cultureInfo.NumberFormat.CurrencyPositivePattern = 3; // Format: 25000 Ar
+cultureInfo.NumberFormat.CurrencyPositivePattern = 3; // Format: 25.000 Ar
+cultureInfo.NumberFormat.CurrencyGroupSeparator = "."; // Séparateur : POINT
 ```
 
 ### 2. **CurrencyHelper.cs**
@@ -27,8 +28,8 @@ Helper pour formater les montants de manière cohérente :
 
 | Montant | Affichage |
 |---------|-----------|
-| 25000 | 25 000 Ar |
-| 1500000 | 1 500 000 Ar |
+| 25000 | 25.000 Ar |
+| 1500000 | 1.500.000 Ar |
 | 750 | 750 Ar |
 
 ## ?? Caractéristiques de l'Ariary
@@ -37,7 +38,7 @@ Helper pour formater les montants de manière cohérente :
 - **Symbole**: Ar
 - **Subdivision**: 1 Ariary = 5 Iraimbilanja (non utilisé)
 - **Pas de centimes** dans l'affichage
-- **Séparateur de milliers**: espace
+- **Séparateur de milliers**: . (point)
 
 ## ?? Pour revenir à l'Euro
 
@@ -53,12 +54,12 @@ CultureInfo.DefaultThreadCurrentUICulture = cultureInfo;
 
 Pour changer vers une autre devise, utilisez les codes culture appropriés :
 
-| Devise | Code Culture | Symbole |
-|--------|-------------|---------|
-| Euro | fr-FR | € |
-| Dollar US | en-US | $ |
-| Franc CFA | fr-CI | CFA |
-| Ariary | mg-MG | Ar |
+| Devise | Code Culture | Symbole | Séparateur |
+|--------|-------------|---------|------------|
+| Euro | fr-FR | € | espace |
+| Dollar US | en-US | $ | virgule |
+| Franc CFA | fr-CI | CFA | espace |
+| Ariary | mg-MG | Ar | point |
 
 ## ?? Notes importantes
 
@@ -66,23 +67,41 @@ Pour changer vers une autre devise, utilisez les codes culture appropriés :
 2. La base de données stocke toujours les valeurs en `decimal` (indépendant de la devise)
 3. Le formatage est appliqué uniquement à l'affichage (`.ToString("C")`)
 4. Les calculs restent précis même sans décimales à l'affichage
+5. **Séparateur de milliers : POINT (.)** - Ex: 1.500.000 Ar
 
 ## ?? Utilisation dans les composants
 
 ### Affichage simple
 ```razor
 <p>Total: @facture.TotalTTC.ToString("C")</p>
-<!-- Affiche: Total: 25 000 Ar -->
+<!-- Affiche: Total: 25.000 Ar -->
 ```
 
 ### Avec le helper (optionnel)
 ```razor
 <p>Total: @facture.TotalTTC.FormatAriary()</p>
-<!-- Affiche: Total: 25 000 Ar -->
+<!-- Affiche: Total: 25.000 Ar -->
 ```
 
 ### Dans le code C#
 ```csharp
 var montantFormate = CurrencyHelper.FormatCurrency(25000m);
-// Résultat: "25 000 Ar"
+// Résultat: "25.000 Ar"
 ```
+
+## ?? Personnalisation du séparateur
+
+Pour changer le séparateur de milliers, modifiez dans `Program.cs` :
+
+```csharp
+// Point (actuel)
+cultureInfo.NumberFormat.CurrencyGroupSeparator = ".";  // 25.000 Ar
+
+// Espace
+cultureInfo.NumberFormat.CurrencyGroupSeparator = " ";  // 25 000 Ar
+
+// Virgule
+cultureInfo.NumberFormat.CurrencyGroupSeparator = ",";  // 25,000 Ar
+
+// Apostrophe (style suisse)
+cultureInfo.NumberFormat.CurrencyGroupSeparator = "'";  // 25'000 Ar

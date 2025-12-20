@@ -17,6 +17,7 @@ namespace InvoiceManager
             cultureInfo.NumberFormat.CurrencyDecimalDigits = 0; // L'Ariary n'a pas de centimes
             cultureInfo.NumberFormat.CurrencyPositivePattern = 3; // n Ar (nombre suivi du symbole)
             cultureInfo.NumberFormat.CurrencyNegativePattern = 8; // -n Ar
+            cultureInfo.NumberFormat.CurrencyGroupSeparator = "."; // Séparateur de milliers : POINT
             
             CultureInfo.DefaultThreadCurrentCulture = cultureInfo;
             CultureInfo.DefaultThreadCurrentUICulture = cultureInfo;
@@ -46,7 +47,7 @@ namespace InvoiceManager
 
             var app = builder.Build();
 
-            // Assurer que la base de donnée sera créer au premier lancement
+            // Ensure database is created on first run
             using (var scope = app.Services.CreateScope())
             {
                 var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();

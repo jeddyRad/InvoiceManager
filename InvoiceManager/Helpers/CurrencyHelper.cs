@@ -16,14 +16,14 @@ namespace InvoiceManager.Helpers
             MalagasyCulture.NumberFormat.CurrencyDecimalDigits = 0;
             MalagasyCulture.NumberFormat.CurrencyPositivePattern = 3; // n Ar
             MalagasyCulture.NumberFormat.CurrencyNegativePattern = 8; // -n Ar
-            MalagasyCulture.NumberFormat.CurrencyGroupSeparator = " "; // Séparateur de milliers
+            MalagasyCulture.NumberFormat.CurrencyGroupSeparator = "."; // Séparateur de milliers : POINT
         }
 
         /// <summary>
         /// Formate un montant en Ariary Malgache
         /// </summary>
         /// <param name="amount">Montant à formater</param>
-        /// <returns>Montant formaté (ex: "25 000 Ar")</returns>
+        /// <returns>Montant formaté (ex: "25.000 Ar")</returns>
         public static string FormatCurrency(decimal amount)
         {
             return amount.ToString("C", MalagasyCulture);
@@ -33,7 +33,7 @@ namespace InvoiceManager.Helpers
         /// Formate un montant en Ariary avec un format personnalisé
         /// </summary>
         /// <param name="amount">Montant à formater</param>
-        /// <returns>Montant formaté (ex: "25 000 Ar")</returns>
+        /// <returns>Montant formaté (ex: "25.000 Ar")</returns>
         public static string FormatAriary(this decimal amount)
         {
             return amount.ToString("N0", MalagasyCulture) + " Ar";
