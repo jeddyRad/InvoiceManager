@@ -127,5 +127,40 @@ namespace InvoiceManager.Services
                 throw;
             }
         }
+
+        public async Task<bool> EmailExistsAsync(string email, int excludeClientId = 0)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+                return false;
+
+            return await _context.Clients
+                .AsNoTracking()
+                .AnyAsync(c => c.Email == email && c.Id != excludeClientId);
+        }
+
+        public async Task<bool> NomExistsAsync(string nom, int excludeClientId = 0)
+        {
+            if (string.IsNullOrWhiteSpace(nom))
+                return false;
+
+            return await _context.Clients
+                .AsNoTracking()
+                .AnyAsync(c => c.Nom.ToLower() == nom.ToLower() && c.Id != excludeClientId);
+        }
+
+        public async Task<bool> TelephoneExistsAsync(string telephone, int excludeClientId = 0)
+        {
+            if (string.IsNullOrWhiteSpace(telephone))
+                return false;
+
+            // Normaliser le numéro (enlever espaces, tirets, etc.)
+            var normalizedPhone = telephone.Replace(" ", "").Replace("-", "").Replace(".", "");
+
+            return await _context.Clients
+                .AsNoTracking()
+                .AnyAsync(c => c.Telephone != null 
+                    && c.Telephone.Replace(" ", "").Replace("-", "").Replace(".", "") == normalizedPhone 
+                    && c.Id != excludeClientId);
+        }
     }
 }

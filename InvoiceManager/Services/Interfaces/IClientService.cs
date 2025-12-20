@@ -9,5 +9,8 @@ namespace InvoiceManager.Services.Interfaces
         Task AddAsync(Client client);
         Task UpdateAsync(Client client);
         Task DeleteAsync(int id);
+        Task<bool> EmailExistsAsync(string email, int excludeClientId = 0);
+        Task<bool> NomExistsAsync(string nom, int excludeClientId = 0);
+        Task<bool> TelephoneExistsAsync(string telephone, int excludeClientId = 0);
     }
 }

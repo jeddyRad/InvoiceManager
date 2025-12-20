@@ -1,5 +1,8 @@
 ﻿@inject IClientService ClientService
 @inject ILogger<ClientForm> Logger
+@using InvoiceManager.Validation
+@using System.ComponentModel.DataAnnotations
+@using System.Text.RegularExpressions
 
 @implements IDisposable
 
@@ -21,24 +24,53 @@
 
 <EditForm Model="client" OnValidSubmit="HandleValidSubmit" FormName="client-form">
     <DataAnnotationsValidator />
-    <ValidationSummary />
+    @* Supprimer ValidationSummary pour éviter l'affichage en haut *@
 
     <div class="mb-3">
-        <label class="form-label">Nom</label>
-        <InputText class="form-control" @bind-Value="client.Nom" />
+        <label class="form-label">Nom <span class="text-danger">*</span></label>
+        <InputText class="@GetInputClass(validationErrors.NomError)" 
+                   @bind-Value="client.Nom" 
+                   @oninput="OnNomChanged" />
         <ValidationMessage For="@(() => client.Nom)" />
+        @if (!string.IsNullOrEmpty(validationErrors.NomError))
+        {
+            <div class="invalid-feedback d-block">
+                @validationErrors.NomError
+            </div>
+        }
     </div>
 
     <div class="mb-3">
         <label class="form-label">Email</label>
-        <InputText class="form-control" @bind-Value="client.Email" type="email" />
+        <InputText class="@GetInputClass(validationErrors.EmailError)" 
+                   @bind-Value="client.Email" 
+                   type="email"
+                   @oninput="OnEmailChanged" />
         <ValidationMessage For="@(() => client.Email)" />
+        @if (!string.IsNullOrEmpty(validationErrors.EmailError))
+        {
+            <div class="invalid-feedback d-block">
+                @validationErrors.EmailError
+            </div>
+        }
     </div>
 
     <div class="mb-3">
         <label class="form-label">Téléphone</label>
-        <InputText class="form-control" @bind-Value="client.Telephone" />
+        <InputText class="@GetInputClass(validationErrors.TelephoneError)" 
+                   @bind-Value="client.Telephone"
+                   @oninput="OnTelephoneChanged"
+                   placeholder="034 12 345 67" />
         <ValidationMessage For="@(() => client.Telephone)" />
+        @if (!string.IsNullOrEmpty(validationErrors.TelephoneError))
+        {
+            <div class="invalid-feedback d-block">
+                @validationErrors.TelephoneError
+            </div>
+        }
+        <small class="form-text text-muted">
+            Format suggéré : 034 12 345 67 ou 0341234567
+        </small>
     </div>
 
     <div class="mb-3">
@@ -47,7 +79,9 @@
     </div>
 
     <div class="mt-3">
-        <button type="submit" class="btn btn-primary">Enregistrer</button>
+        <button type="submit" class="btn btn-primary" disabled="@(validationErrors.HasErrors)">
+            Enregistrer
+        </button>
         @if (ClientToEdit != null)
         {
             <button type="button" class="btn btn-secondary ms-2" @onclick="HandleCancel">Fermer</button>
@@ -69,8 +103,15 @@
     private string? successMessage;
     private string? errorMessage;
     private bool shouldRender = true;
+    private ClientValidationErrors validationErrors = new ClientValidationErrors();
+    private System.Threading.Timer? debounceTimer;
 
     protected override bool ShouldRender() => shouldRender;
+
+    private string GetInputClass(string? error)
+    {
+        return error != null ? "form-control is-invalid" : "form-control";
+    }
 
     protected override void OnParametersSet()
     {
@@ -94,6 +135,141 @@
         // Clear messages when switching clients
         successMessage = null;
         errorMessage = null;
+        validationErrors.Clear();
+    }
+
+    private void OnNomChanged(ChangeEventArgs e)
+    {
+        client.Nom = e.Value?.ToString() ?? string.Empty;
+        
+        // Débounce la validation (attendre 500ms après la dernière frappe)
+        debounceTimer?.Dispose();
+        debounceTimer = new System.Threading.Timer(async _ =>
+        {
+            await ValidateNom();
+            await InvokeAsync(StateHasChanged);
+        }, null, 500, Timeout.Infinite);
+    }
+
+    private void OnEmailChanged(ChangeEventArgs e)
+    {
+        client.Email = e.Value?.ToString();
+        
+        // Débounce la validation
+        debounceTimer?.Dispose();
+        debounceTimer = new System.Threading.Timer(async _ =>
+        {
+            await ValidateEmail();
+            await InvokeAsync(StateHasChanged);
+        }, null, 500, Timeout.Infinite);
+    }
+
+    private void OnTelephoneChanged(ChangeEventArgs e)
+    {
+        client.Telephone = e.Value?.ToString();
+        
+        // Débounce la validation
+        debounceTimer?.Dispose();
+        debounceTimer = new System.Threading.Timer(async _ =>
+        {
+            await ValidateTelephone();
+            await InvokeAsync(StateHasChanged);
+        }, null, 500, Timeout.Infinite);
+    }
+
+    private async Task ValidateNom()
+    {
+        validationErrors.NomError = null;
+
+        if (string.IsNullOrWhiteSpace(client.Nom))
+        {
+            validationErrors.NomError = "Le nom est obligatoire.";
+            return;
+        }
+
+        if (client.Nom.Length > 100)
+        {
+            validationErrors.NomError = "Le nom ne peut pas dépasser 100 caractères.";
+            return;
+        }
+
+        // Vérifier les doublons
+        var exists = await ClientService.NomExistsAsync(client.Nom, client.Id);
+        if (exists)
+        {
+            validationErrors.NomError = "Un client avec ce nom existe déjà.";
+        }
+    }
+
+    private async Task ValidateEmail()
+    {
+        validationErrors.EmailError = null;
+
+        if (!string.IsNullOrWhiteSpace(client.Email))
+        {
+            // Validation format email
+            var emailValidator = new EmailAddressAttribute();
+            if (!emailValidator.IsValid(client.Email))
+            {
+                validationErrors.EmailError = "Format d'email invalide.";
+                return;
+            }
+
+            // Vérifier les doublons
+            var exists = await ClientService.EmailExistsAsync(client.Email, client.Id);
+            if (exists)
+            {
+                validationErrors.EmailError = "Un client avec cet email existe déjà.";
+            }
+        }
+    }
+
+    private async Task ValidateTelephone()
+    {
+        validationErrors.TelephoneError = null;
+
+        if (!string.IsNullOrWhiteSpace(client.Telephone))
+        {
+            // Normaliser le numéro pour la validation
+            var normalizedPhone = client.Telephone.Replace(" ", "").Replace("-", "").Replace(".", "");
+
+            // Validation format téléphone malgache
+            // Formats acceptés : 
+            // - 03X XX XXX XX (9 chiffres commençant par 03)
+            // - 02X XX XXX XX (9 chiffres commençant par 02)
+            // - +261 3X XX XXX XX (format international)
+            
+            if (normalizedPhone.StartsWith("+261"))
+            {
+                // Format international
+                if (!Regex.IsMatch(normalizedPhone, @"^\+261[23]\d{8}$"))
+                {
+                    validationErrors.TelephoneError = "Format invalide. Exemple : +261 34 12 345 67";
+                    return;
+                }
+            }
+            else if (normalizedPhone.StartsWith("0"))
+            {
+                // Format local
+                if (!Regex.IsMatch(normalizedPhone, @"^0[23]\d{8}$"))
+                {
+                    validationErrors.TelephoneError = "Format invalide. Exemple : 034 12 345 67";
+                    return;
+                }
+            }
+            else
+            {
+                validationErrors.TelephoneError = "Le numéro doit commencer par 02, 03 ou +261";
+                return;
+            }
+
+            // Vérifier les doublons
+            var exists = await ClientService.TelephoneExistsAsync(client.Telephone, client.Id);
+            if (exists)
+            {
+                validationErrors.TelephoneError = "Un client avec ce numéro existe déjà.";
+            }
+        }
     }
 
     private async Task HandleValidSubmit()
@@ -103,6 +279,17 @@
             shouldRender = true;
             successMessage = null;
             errorMessage = null;
+
+            // Validation finale avant soumission
+            await ValidateNom();
+            await ValidateEmail();
+            await ValidateTelephone();
+
+            if (validationErrors.HasErrors)
+            {
+                errorMessage = "Veuillez corriger les erreurs avant de soumettre le formulaire.";
+                return;
+            }
 
             if (client.Id == 0)
             {
@@ -135,6 +322,7 @@
         client = new Client();
         successMessage = null;
         errorMessage = null;
+        validationErrors.Clear();
         
         if (OnCancelled.HasDelegate)
         {
@@ -144,6 +332,7 @@
 
     public void Dispose()
     {
+        debounceTimer?.Dispose();
         Logger.LogDebug("Disposal du formulaire client");
     }
 }
