@@ -1,9 +1,7 @@
 ﻿@inject IFactureService FactureService
 @inject IClientService ClientService
 @inject ILogger<FactureForm> Logger
-@using InvoiceManager.Data.Entities
-@using InvoiceManager.Services.Interfaces
-@using Microsoft.AspNetCore.Components
+
 @implements IDisposable
 
 @if (!string.IsNullOrEmpty(successMessage))

@@ -3,12 +3,24 @@ using Microsoft.EntityFrameworkCore;
 using InvoiceManager.Data;
 using InvoiceManager.Services;
 using InvoiceManager.Services.Interfaces;
+using System.Globalization;
+
 namespace InvoiceManager
 {
     public class Program
     {
         public static void Main(string[] args)
         {
+            // Configuration de la culture pour l'Ariary Malgache
+            var cultureInfo = new CultureInfo("mg-MG"); // Culture malgache
+            cultureInfo.NumberFormat.CurrencySymbol = "Ar"; // Symbole Ariary
+            cultureInfo.NumberFormat.CurrencyDecimalDigits = 0; // L'Ariary n'a pas de centimes
+            cultureInfo.NumberFormat.CurrencyPositivePattern = 3; // n Ar (nombre suivi du symbole)
+            cultureInfo.NumberFormat.CurrencyNegativePattern = 8; // -n Ar
+            
+            CultureInfo.DefaultThreadCurrentCulture = cultureInfo;
+            CultureInfo.DefaultThreadCurrentUICulture = cultureInfo;
+
             var builder = WebApplication.CreateBuilder(args);
 
             // Add services to the container.
@@ -34,7 +46,7 @@ namespace InvoiceManager
 
             var app = builder.Build();
 
-            // Ensure database is created on first run
+            // Assurer que la base de donnée sera créer au premier lancement
             using (var scope = app.Services.CreateScope())
             {
                 var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
