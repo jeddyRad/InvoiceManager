@@ -1,19 +1,21 @@
-﻿using InvoiceManager.Data;
-using InvoiceManager.Data.Entities;
+﻿using InvoiceManager.Data.Entities;
+using InvoiceManager.Data.Repositories.Interfaces;
 using InvoiceManager.Services.Interfaces;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace InvoiceManager.Services
 {
+    /// <summary>
+    /// Service métier pour les clients (utilise le Repository)
+    /// </summary>
     public class ClientService : IClientService
     {
-        private readonly AppDbContext _context;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<ClientService> _logger;
 
-        public ClientService(AppDbContext context, ILogger<ClientService> logger)
+        public ClientService(IUnitOfWork unitOfWork, ILogger<ClientService> logger)
         {
-            _context = context;
+            _unitOfWork = unitOfWork;
             _logger = logger;
         }
 
@@ -22,11 +24,7 @@ namespace InvoiceManager.Services
             _logger.LogInformation("Récupération de tous les clients");
             try
             {
-                var clients = await _context.Clients
-                    .AsNoTracking()
-                    .OrderBy(c => c.Nom)
-                    .ToListAsync();
-                
+                var clients = (await _unitOfWork.Clients.GetAllAsync()).ToList();
                 _logger.LogInformation("Récupération de {Count} clients", clients.Count);
                 return clients;
             }
@@ -42,9 +40,7 @@ namespace InvoiceManager.Services
             _logger.LogInformation("Récupération du client {ClientId}", id);
             try
             {
-                var client = await _context.Clients
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(c => c.Id == id);
+                var client = await _unitOfWork.Clients.GetByIdAsync(id);
 
                 if (client == null)
                 {
@@ -65,8 +61,9 @@ namespace InvoiceManager.Services
             _logger.LogInformation("Ajout d'un nouveau client: {Nom}", client.Nom);
             try
             {
-                _context.Clients.Add(client);
-                await _context.SaveChangesAsync();
+                await _unitOfWork.Clients.AddAsync(client);
+                await _unitOfWork.SaveChangesAsync();
+                
                 _logger.LogInformation("Client {ClientId} créé avec succès: {Nom}", client.Id, client.Nom);
             }
             catch (Exception ex)
@@ -81,7 +78,7 @@ namespace InvoiceManager.Services
             _logger.LogInformation("Mise à jour du client {ClientId}: {Nom}", client.Id, client.Nom);
             try
             {
-                var existingClient = await _context.Clients.FindAsync(client.Id);
+                var existingClient = await _unitOfWork.Clients.GetByIdAsync(client.Id);
                 
                 if (existingClient == null)
                 {
@@ -94,7 +91,9 @@ namespace InvoiceManager.Services
                 existingClient.Telephone = client.Telephone;
                 existingClient.Adresse = client.Adresse;
 
-                await _context.SaveChangesAsync();
+                _unitOfWork.Clients.Update(existingClient);
+                await _unitOfWork.SaveChangesAsync();
+                
                 _logger.LogInformation("Client {ClientId} mis à jour avec succès", client.Id);
             }
             catch (Exception ex)
@@ -109,11 +108,13 @@ namespace InvoiceManager.Services
             _logger.LogInformation("Suppression du client {ClientId}", id);
             try
             {
-                var client = await _context.Clients.FindAsync(id);
+                var client = await _unitOfWork.Clients.GetByIdAsync(id);
+                
                 if (client != null)
                 {
-                    _context.Clients.Remove(client);
-                    await _context.SaveChangesAsync();
+                    _unitOfWork.Clients.Remove(client);
+                    await _unitOfWork.SaveChangesAsync();
+                    
                     _logger.LogInformation("Client {ClientId} supprimé: {Nom}", id, client.Nom);
                 }
                 else
@@ -130,37 +131,17 @@ namespace InvoiceManager.Services
 
         public async Task<bool> EmailExistsAsync(string email, int excludeClientId = 0)
         {
-            if (string.IsNullOrWhiteSpace(email))
-                return false;
-
-            return await _context.Clients
-                .AsNoTracking()
-                .AnyAsync(c => c.Email == email && c.Id != excludeClientId);
+            return await _unitOfWork.Clients.EmailExistsAsync(email, excludeClientId);
         }
 
         public async Task<bool> NomExistsAsync(string nom, int excludeClientId = 0)
         {
-            if (string.IsNullOrWhiteSpace(nom))
-                return false;
-
-            return await _context.Clients
-                .AsNoTracking()
-                .AnyAsync(c => c.Nom.ToLower() == nom.ToLower() && c.Id != excludeClientId);
+            return await _unitOfWork.Clients.NomExistsAsync(nom, excludeClientId);
         }
 
         public async Task<bool> TelephoneExistsAsync(string telephone, int excludeClientId = 0)
         {
-            if (string.IsNullOrWhiteSpace(telephone))
-                return false;
-
-            // Normaliser le numéro (enlever espaces, tirets, etc.)
-            var normalizedPhone = telephone.Replace(" ", "").Replace("-", "").Replace(".", "");
-
-            return await _context.Clients
-                .AsNoTracking()
-                .AnyAsync(c => c.Telephone != null 
-                    && c.Telephone.Replace(" ", "").Replace("-", "").Replace(".", "") == normalizedPhone 
-                    && c.Id != excludeClientId);
+            return await _unitOfWork.Clients.TelephoneExistsAsync(telephone, excludeClientId);
         }
     }
 }

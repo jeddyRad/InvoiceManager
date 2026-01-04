@@ -1,20 +1,21 @@
-﻿using InvoiceManager.Data;
-using InvoiceManager.Data.Entities;
+﻿using InvoiceManager.Data.Entities;
+using InvoiceManager.Data.Repositories.Interfaces;
 using InvoiceManager.Services.Interfaces;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-
 
 namespace InvoiceManager.Services
 {
+    /// <summary>
+    /// Service métier pour les factures (utilise le Repository)
+    /// </summary>
     public class FactureService : IFactureService
     {
-        private readonly AppDbContext _context;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<FactureService> _logger;
 
-        public FactureService(AppDbContext context, ILogger<FactureService> logger)
+        public FactureService(IUnitOfWork unitOfWork, ILogger<FactureService> logger)
         {
-            _context = context;
+            _unitOfWork = unitOfWork;
             _logger = logger;
         }
 
@@ -23,12 +24,7 @@ namespace InvoiceManager.Services
             _logger.LogInformation("Récupération de toutes les factures");
             try
             {
-                var factures = await _context.Factures
-                    .AsNoTracking()
-                    .Include(f => f.Client)
-                    .OrderByDescending(f => f.DateFacture)
-                    .ToListAsync();
-
+                var factures = await _unitOfWork.Factures.GetAllWithDetailsAsync();
                 _logger.LogInformation("Récupération de {Count} factures", factures.Count);
                 return factures;
             }
@@ -44,11 +40,7 @@ namespace InvoiceManager.Services
             _logger.LogInformation("Récupération de la facture {FactureId}", id);
             try
             {
-                var facture = await _context.Factures
-                    .AsNoTracking()
-                    .Include(f => f.Client)
-                    .Include(f => f.Lignes)
-                    .FirstOrDefaultAsync(f => f.Id == id);
+                var facture = await _unitOfWork.Factures.GetByIdWithDetailsAsync(id);
 
                 if (facture == null)
                 {
@@ -69,15 +61,15 @@ namespace InvoiceManager.Services
             _logger.LogInformation("Création d'une nouvelle facture pour le client {ClientId}", facture.ClientId);
             try
             {
-                var count = await _context.Factures.CountAsync() + 1;
+                var count = await _unitOfWork.Factures.GetNextFactureNumberAsync();
                 facture.Numero = $"FAC-{DateTime.Now:yyyyMM}-{count:0000}";
                 facture.DateFacture = DateTime.Now;
                 facture.Statut = FactureStatut.Brouillon;
 
                 facture.CalculerTotaux();
 
-                _context.Factures.Add(facture);
-                await _context.SaveChangesAsync();
+                await _unitOfWork.Factures.AddAsync(facture);
+                await _unitOfWork.SaveChangesAsync();
                 
                 _logger.LogInformation("Facture {Numero} créée avec succès (ID: {FactureId})", facture.Numero, facture.Id);
             }
@@ -93,11 +85,9 @@ namespace InvoiceManager.Services
             _logger.LogInformation("Mise à jour de la facture {FactureId}", facture.Id);
             try
             {
-                DetachTrackedEntities(facture.Id);
+                _unitOfWork.Factures.DetachTrackedEntities(facture.Id);
 
-                var existing = await _context.Factures
-                    .Include(f => f.Lignes)
-                    .FirstOrDefaultAsync(f => f.Id == facture.Id);
+                var existing = await _unitOfWork.Factures.GetByIdWithDetailsAsync(facture.Id);
 
                 if (existing == null)
                 {
@@ -119,9 +109,9 @@ namespace InvoiceManager.Services
                 var toRemove = existing.Lignes.Where(l => !incomingIds.Contains(l.Id)).ToList();
                 
                 _logger.LogDebug("Suppression de {Count} lignes", toRemove.Count);
-                foreach (var del in toRemove)
+                foreach (var ligne in toRemove)
                 {
-                    _context.LigneFactures.Remove(del);
+                    existing.Lignes.Remove(ligne);
                 }
 
                 foreach (var line in facture.Lignes)
@@ -150,7 +140,8 @@ namespace InvoiceManager.Services
                 }
 
                 existing.CalculerTotaux();
-                await _context.SaveChangesAsync();
+                _unitOfWork.Factures.Update(existing);
+                await _unitOfWork.SaveChangesAsync();
                 
                 _logger.LogInformation("Facture {FactureId} mise à jour avec succès", facture.Id);
             }
@@ -166,7 +157,8 @@ namespace InvoiceManager.Services
             _logger.LogInformation("Suppression de la facture {FactureId}", id);
             try
             {
-                var facture = await _context.Factures.FindAsync(id);
+                var facture = await _unitOfWork.Factures.GetByIdAsync(id);
+                
                 if (facture != null)
                 {
                     if (!facture.PeutEtreModifiee())
@@ -175,8 +167,10 @@ namespace InvoiceManager.Services
                             id, facture.Statut);
                         throw new InvalidOperationException("Seules les factures brouillon peuvent être supprimées.");
                     }
-                    _context.Factures.Remove(facture);
-                    await _context.SaveChangesAsync();
+                    
+                    _unitOfWork.Factures.Remove(facture);
+                    await _unitOfWork.SaveChangesAsync();
+                    
                     _logger.LogInformation("Facture {FactureId} ({Numero}) supprimée", id, facture.Numero);
                 }
                 else
@@ -196,9 +190,7 @@ namespace InvoiceManager.Services
             _logger.LogInformation("Recalcul des totaux de la facture {FactureId}", factureId);
             try
             {
-                var facture = await _context.Factures
-                    .Include(f => f.Lignes)
-                    .FirstOrDefaultAsync(f => f.Id == factureId);
+                var facture = await _unitOfWork.Factures.GetByIdWithDetailsAsync(factureId);
                 
                 if (facture == null)
                 {
@@ -207,7 +199,8 @@ namespace InvoiceManager.Services
                 }
                 
                 facture.CalculerTotaux();
-                await _context.SaveChangesAsync();
+                _unitOfWork.Factures.Update(facture);
+                await _unitOfWork.SaveChangesAsync();
                 
                 _logger.LogInformation("Totaux recalculés pour la facture {FactureId}: HT={TotalHT:C}, TTC={TotalTTC:C}", 
                     factureId, facture.TotalHT, facture.TotalTTC);
@@ -224,9 +217,7 @@ namespace InvoiceManager.Services
             _logger.LogInformation("Validation de la facture {FactureId}", id);
             try
             {
-                var facture = await _context.Factures
-                    .Include(f => f.Lignes)
-                    .FirstOrDefaultAsync(f => f.Id == id);
+                var facture = await _unitOfWork.Factures.GetByIdWithDetailsAsync(id);
                 
                 if (facture == null)
                 {
@@ -235,7 +226,8 @@ namespace InvoiceManager.Services
                 }
 
                 facture.Valider();
-                await _context.SaveChangesAsync();
+                _unitOfWork.Factures.Update(facture);
+                await _unitOfWork.SaveChangesAsync();
                 
                 _logger.LogInformation("Facture {FactureId} ({Numero}) validée avec succès", id, facture.Numero);
             }
@@ -251,7 +243,7 @@ namespace InvoiceManager.Services
             _logger.LogInformation("Annulation de la facture {FactureId}", id);
             try
             {
-                var facture = await _context.Factures.FindAsync(id);
+                var facture = await _unitOfWork.Factures.GetByIdAsync(id);
                 
                 if (facture == null)
                 {
@@ -260,7 +252,8 @@ namespace InvoiceManager.Services
                 }
 
                 facture.Annuler();
-                await _context.SaveChangesAsync();
+                _unitOfWork.Factures.Update(facture);
+                await _unitOfWork.SaveChangesAsync();
                 
                 _logger.LogInformation("Facture {FactureId} ({Numero}) annulée", id, facture.Numero);
             }
@@ -268,31 +261,6 @@ namespace InvoiceManager.Services
             {
                 _logger.LogError(ex, "Erreur lors de l'annulation de la facture {FactureId}", id);
                 throw;
-            }
-        }
-
-        /// <summary>
-        /// Détache les entités Facture et LigneFacture suivies pour éviter les conflits
-        /// </summary>
-        private void DetachTrackedEntities(int factureId)
-        {
-            // Détacher la facture si elle est suivie
-            var trackedFacture = _context.ChangeTracker.Entries<Facture>()
-                .FirstOrDefault(e => e.Entity.Id == factureId);
-            
-            if (trackedFacture != null)
-            {
-                trackedFacture.State = EntityState.Detached;
-            }
-
-            // Détacher toutes les lignes de cette facture
-            var trackedLignes = _context.ChangeTracker.Entries<LigneFacture>()
-                .Where(e => e.Entity.FactureId == factureId)
-                .ToList();
-            
-            foreach (var trackedLigne in trackedLignes)
-            {
-                trackedLigne.State = EntityState.Detached;
             }
         }
     }

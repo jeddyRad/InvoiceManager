@@ -3,6 +3,19 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal
+App_Data/
+
+# Production configuration files
+appsettings.Production.json
+
+# Backup files
+Backups/
+*.bak
+
 # User-specific files
 *.rsuser
 *.suo
